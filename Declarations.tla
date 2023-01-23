@@ -3,10 +3,12 @@ EXTENDS Integers, Naturals, Sequences, FiniteSets
 
 CONSTANT
     Requests,       \* set of commands sent by client
-    NumReplicas,    \* number of replicas
+    NumReplicas,    \* num/ber of replicas
     MaxViewNumber,  \* maximum view number
-    MaxNumFailures  \* maximum number of failures
-    
+    MaxNumFailures, \* maximum number of failures
+    MaxEpochNumber, \* max epoch number
+    MaxConfigSize   \* max config size
+        
 VARIABLE 
     replicas, \* replicas[r] is the state of replica r
     nonce,     \* number of failures at the moment (needed for Recovery protocol)
@@ -14,5 +16,5 @@ VARIABLE
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Dec 16 21:22:14 MSK 2022 by sandman
+\* Last modified Sat Jan 21 15:59:14 MSK 2023 by sandman
 \* Created Thu Dec 01 23:43:40 MSK 2022 by sandman

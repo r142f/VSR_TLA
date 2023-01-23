@@ -3,12 +3,10 @@ EXTENDS Declarations
 
 Range(T) == { T[x] : x \in DOMAIN T }
 
-Seq2(S, n) == UNION {[1..m -> S] : m \in 1..n}
+IsInjective(f) == \A a,b \in DOMAIN f : f[a] = f[b] => a = b
 
-SetToSeq(set) ==
-    IF Cardinality(set) = 0
-    THEN <<>>
-    ELSE CHOOSE x \in Seq2(set, Cardinality(set)) : Range(x) = set
+SetToSeq(S) == 
+  CHOOSE f \in [1..Cardinality(S) -> S] : IsInjective(f)
     
 IndexPerms(n) == {key \in [1..n -> 1..n] : Range(key) = 1..n}
 
@@ -45,14 +43,33 @@ GetIdx(seq, key, value, type) ==
     
 ----
 
-IsPrimary(r) == replicas[r].viewNumber % NumReplicas = r - 1   
+ConfigSize(r) == Len(replicas[r].config)
 
-GetPrimary(r) == (replicas[r].viewNumber % NumReplicas) + 1
+f(r) ==  \* number of replicas that can fail simultaniously
+    LET fs == {f_i \in 0..ConfigSize(r): 2*f_i + 1 <= ConfigSize(r)}
+    IN CHOOSE f_i \in fs: 
+        \A f_j \in fs:
+            f_i >= f_j
+            
+majority(r) == ConfigSize(r) \div 2 + 1
 
-f == NumReplicas \div 2 \* number of replicas that can fail simultaniously
+GetPrimary(r) == 
+    LET
+        primaryIdx == (replicas[r].viewNumber % ConfigSize(r)) + 1
+    IN replicas[r].config[primaryIdx]
 
+IsPrimary(r) == GetPrimary(r) = r   
+
+ConfigReplicas ==
+    LET
+        r ==
+            CHOOSE r \in 1..Len(replicas):
+                /\ replicas[r].status /= "shut down"
+                /\ \A r_j \in 1..Len(replicas):
+                    replicas[r_j].epochNumber <= replicas[r].epochNumber
+    IN replicas[r].config
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 04 19:38:25 MSK 2023 by sandman
+\* Last modified Mon Jan 23 01:31:42 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

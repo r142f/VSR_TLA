@@ -4,9 +4,11 @@ EXTENDS Declarations
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 LOCAL INSTANCE StateTransferProtocol
+LOCAL INSTANCE ReconfigurationProtocol
                   
 TryUpdateBatch(r) ==
     /\ IsPrimary(r)
+    /\ ~ PreparingReconfiguration(r)
     /\ Len(replicas[r].batch) < 1                            \* only batches of size 1 are allowed (to minimize state space)
     /\ \/ replicas[r].opNumber > replicas[r].commitNumber    \* check if there is an uncommitted batch
        \/ /\ replicas[r].opNumber = replicas[r].commitNumber \* or force replica to prepare batch
@@ -21,7 +23,7 @@ TryUpdateBatch(r) ==
        /\ replicas' = [
               replicas EXCEPT ![r].batch = Append(
                 @,
-                [request  |-> request]
+                [request |-> request]
               )
           ]
 
@@ -63,12 +65,13 @@ HandlePrepare(r) == \* See 4.1.4 of the paper.
                    
 HandlePrepareOk(r) == \* See 4.1.5 of the paper.
     /\ IsPrimary(r)
+    /\ ~ PreparingReconfiguration(r)
     /\ Cardinality({
-            i \in 1..NumReplicas: 
+            i \in Range(replicas[r].config): 
                 /\ replicas[i].viewNumber = replicas[r].viewNumber
                 /\ replicas[i].opNumber >= replicas[r].opNumber
                 /\ replicas[i].status = "normal"
-        }) > f 
+        }) >= majority(r) 
     /\ replicas[r].commitNumber /= replicas[r].opNumber
     /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
     /\ committedLogs' =
@@ -98,5 +101,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 04 20:10:10 MSK 2023 by sandman
+\* Last modified Mon Jan 23 02:49:13 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

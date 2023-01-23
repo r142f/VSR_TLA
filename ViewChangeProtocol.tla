@@ -5,7 +5,7 @@ LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 LOCAL INSTANCE NormalProtocol
 
-GracefulDemote(r) == 
+GracefulDemote(r) == \* M_d
     /\ replicas[r].viewNumber < MaxViewNumber
     /\ IsPrimary(r)
     /\ replicas[r].opNumber = replicas[r].commitNumber
@@ -26,7 +26,7 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     
 HandleStartViewChange(r) ==
     \* See 4.2.1's end of the paper. 
-       /\ \E i \in 1..NumReplicas:
+       /\ \E i \in Range(replicas[r].config):
            /\ replicas[i].viewNumber > replicas[r].viewNumber
            /\ replicas' = [
                 replicas EXCEPT ![r].viewNumber = replicas[i].viewNumber,
@@ -49,16 +49,16 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
             viewNumbers == {
                 viewNumber \in 0..MaxViewNumber:
                     /\ Cardinality({
-                            i \in 1..NumReplicas:
+                            i \in Range(replicas[r].config):
                                /\ replicas[i].viewNumber = viewNumber
                                /\ replicas[i].status /= "recovering"
-                          }) > f
+                          }) >= majority(r)
                     /\ \/ /\ replicas[r].status = "normal"
                           /\ replicas[r].viewNumber + 1 = viewNumber
-                          /\ (viewNumber % NumReplicas) + 1 = r
+                          /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
                        \/ /\ replicas[r].status = "view-change"
                           /\ replicas[r].viewNumber = viewNumber
-                          /\ (viewNumber % NumReplicas) + 1 = r
+                          /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
             }
         IN
            /\ viewNumbers /= {}
@@ -70,7 +70,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                 doViewChangeReplicas == 
                     {
                         replica \in {
-                            replicas[i]:i \in 1..NumReplicas
+                            replicas[i]: i \in Range(replicas[r].config)
                         }: /\ replica.viewNumber = viewNumber
                            /\ replica.status /= "recovering"
                     }
@@ -87,7 +87,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                         \A replica_i \in doViewChangeReplicas:
                             replica.commitNumber >= replica_i.commitNumber
               IN
-                /\ viewNumber % NumReplicas = r - 1 
+                /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r 
                 /\ \/ /\ replicas[r].status = "normal"
                       /\ replicas[r].viewNumber < viewNumber
                    \/ /\ replicas[r].status = "view-change"
@@ -97,23 +97,26 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                         status                     |-> "normal",
                         viewNumber                 |-> viewNumber,
                         opNumber                   |-> opNumber + 1,
+                        epochNumber                |-> replicas[r].epochNumber,
                         commitNumber               |-> replicaWithNewCommitNumber.commitNumber,
                         logs                       |-> Append(logs, [viewNumber |-> viewNumber]),
                         batch                      |-> <<>>,
-                        lastNonce                  |-> replicas[r].lastNonce
+                        lastNonce                  |-> replicas[r].lastNonce,
+                        oldConfig                  |-> replicas[r].oldConfig,
+                        config                     |-> replicas[r].config
                     ]
                    ]
                   /\ UNCHANGED <<committedLogs>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
-    /\ \E i \in 1..NumReplicas:
+    /\ \E i \in Range(replicas[r].config):
         /\ \/ /\ replicas[r].status = "view-change"
               /\ replicas[i].status = "normal"
               /\ IsPrimary(i)
               /\ replicas[i].viewNumber = replicas[r].viewNumber
            \/ /\ replicas[r].status = "normal"
               /\ replicas[i].status = "normal"
-              /\ (replicas[i].viewNumber % NumReplicas) + 1 >= i
+              /\ GetPrimary(i) >= i
               /\ replicas[r].viewNumber < replicas[i].viewNumber 
         /\
             LET logIdxWithVNMetaLog == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
@@ -121,11 +124,14 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
                 replicas EXCEPT ![r] = [
                     status                     |-> "normal",
                     viewNumber                 |-> replicas[i].viewNumber,
+                    epochNumber                |-> replicas[i].epochNumber,
                     opNumber                   |-> logIdxWithVNMetaLog,
                     commitNumber               |-> Min(replicas[i].commitNumber, logIdxWithVNMetaLog),
                     logs                       |-> SubSeq(replicas[i].logs, 1, logIdxWithVNMetaLog),
                     batch                      |-> <<>>,
-                    lastNonce                  |-> replicas[r].lastNonce
+                    lastNonce                  |-> replicas[r].lastNonce,
+                    oldConfig                  |-> replicas[i].oldConfig,
+                    config                     |-> replicas[i].config
                 ]
             ]
         /\ UNCHANGED <<committedLogs>>
@@ -134,6 +140,8 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
 ViewChangeProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "recovering"
+       /\ replicas[r].status /= "shut down"
+       /\ replicas[r].status /= "transitioning"
        /\ \/ StartViewChange(r)
           \/ HandleStartViewChange(r)
           \/ HandleDoViewChange(r)
@@ -143,5 +151,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Jan 06 15:27:00 MSK 2023 by sandman
+\* Last modified Sun Jan 22 22:35:41 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

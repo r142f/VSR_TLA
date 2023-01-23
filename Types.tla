@@ -3,37 +3,45 @@ EXTENDS Declarations
 
 LOCAL INSTANCE Utils
 
-MaxLogsSize == Cardinality(Requests) + MaxViewNumber
+ConfigType ==
+    {
+        SetToSeq(config): config \in
+            {
+                config \in SUBSET (1..NumReplicas) \ {{}}:
+                    Cardinality(config) <= MaxConfigSize
+            }
+    }
+
+MaxLogsSize == Cardinality(Requests) + MaxViewNumber + MaxEpochNumber
 
 CommonLogType == [request: Requests]
 
 VNMetaLogType == [viewNumber: 1..MaxViewNumber]
 
-LogType == \* log is an entry with request and op-number assigned to it + metalogs
-    CommonLogType \union VNMetaLogType
+ENMetaLogType == 
+    [
+        epochNumber: 1..MaxEpochNumber,
+        config: ConfigType
+    ]
 
-LogsType == \* replicas[r].logs invariant
-    LET
-        possibleLogsSets == SUBSET LogType
-        possibleLogsPerms == UNION {Perms(SetToSeq(possibleLogs)): possibleLogs \in possibleLogsSets}
-        possibleLogsSubSeqs == {
-            SafeSubSeq(possibleLogsPerm, 1, n): 
-                possibleLogsPerm \in possibleLogsPerms,
-                n \in 1..MaxLogsSize
-            }
-        correctPossibleLogsSubSeqs == {
-            possibleLogsSubSeq \in possibleLogsSubSeqs:
-                \A i, j \in 1..Len(possibleLogsSubSeq):
-                    /\ (
-                        /\ i < j
-                        /\ possibleLogsSubSeq[i] \in VNMetaLogType
-                        /\ possibleLogsSubSeq[j] \in VNMetaLogType
-                       ) => possibleLogsSubSeq[i].viewNumber < possibleLogsSubSeq[j].viewNumber     
-        }
-    IN correctPossibleLogsSubSeqs
-    
+LogType == \* log is an entry with request and op-number assigned to it + metalogs
+    CommonLogType \union VNMetaLogType \union ENMetaLogType
+
+CheckLogs(logs) ==
+    /\ Len(logs) = Cardinality(Range(logs))
+    /\ \A i, j \in 1..Len(logs):
+        /\ (
+            /\ i < j
+            /\ logs[i] \in VNMetaLogType
+            /\ logs[j] \in VNMetaLogType
+           ) => logs[i].viewNumber < logs[j].viewNumber
+        /\ (
+            /\ i < j
+            /\ logs[i] \in ENMetaLogType
+            /\ logs[j] \in ENMetaLogType
+           ) => logs[i].epochNumber < logs[j].epochNumber
         
-CommittedLogsTypeOK == committedLogs \in LogsType \* committedLogs type invariant
+CommittedLogsTypeOK == CheckLogs(committedLogs) \* committedLogs type invariant
 
 BatchType == \* requests are send from primary replica to others using batching
     {
@@ -50,17 +58,17 @@ BatchType == \* requests are send from primary replica to others using batching
     } \union {<<>>}
 
 ReplicasTypeOK == \* replicas type invariant
-    replicas \in [
-        1..NumReplicas -> [
-            status:                     {"normal", "view-change", "recovering"},
-            viewNumber:                 0..MaxViewNumber,
-            opNumber:                   0..MaxLogsSize,
-            commitNumber:               0..MaxLogsSize,
-            logs:                       LogsType,
-            batch:                      BatchType,
-            lastNonce:                  0..MaxNumFailures
-        ]
-    ]
+    \A r \in 1..NumReplicas: TRUE
+        /\ replicas[r].status \in {"normal", "view-change", "recovering", "transitioning", "shut down"}
+        /\ replicas[r].viewNumber \in 0..MaxViewNumber
+        /\ replicas[r].epochNumber \in 0..MaxEpochNumber
+        /\ replicas[r].opNumber \in 0..MaxLogsSize
+        /\ replicas[r].commitNumber \in 0..MaxLogsSize
+        /\ CheckLogs(replicas[r].logs)
+        /\ replicas[r].batch \in BatchType
+        /\ replicas[r].lastNonce \in 0..MaxNumFailures
+        /\ replicas[r].oldConfig \in ConfigType \cup {<<>>}
+        /\ replicas[r].config \in ConfigType \cup {<<>>}
    
 NonceTypeOK == nonce \in 0..MaxNumFailures \* nonce type invariant
 
@@ -71,5 +79,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 04 20:10:01 MSK 2023 by sandman
+\* Last modified Mon Jan 23 02:28:49 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman

@@ -4,12 +4,6 @@ EXTENDS Declarations
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 
-\*_primary == replicas[GetPrimary(2)]
-\*_idxOfLastCommitedLog == GetIdx(replicas[2].logs, "opNumber", replicas[2].commitNumber, CommonLogType)
-\*_logs == IF _primary.viewNumber = replicas[2].viewNumber THEN replicas[2].logs ELSE SafeSubSeq(replicas[2].logs, 1, _idxOfLastCommitedLog)
-\*_idxOfPrimaryLog == GetIdx(_primary.logs, "opNumber", _primary.opNumber, CommonLogType)
-\*_logsToAdd == SafeSubSeq(_primary.logs, Len(_logs) + 1, _idxOfPrimaryLog)
-
 HandleNewState(r) == \* See 5.2 of the paper.
     LET
         primary == replicas[GetPrimary(r)]
@@ -35,5 +29,5 @@ HandleNewState(r) == \* See 5.2 of the paper.
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 04 20:09:52 MSK 2023 by sandman
+\* Last modified Sun Jan 22 00:45:28 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

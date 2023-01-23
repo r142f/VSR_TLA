@@ -16,15 +16,19 @@ ConsistentLogs == \* "all replicas must have consistent logs" invariant
 ----
     
 ReplicasInit == \* see fig. 2 of the paper for explanation
+  \E config \in ConfigType:
     replicas = [
         x \in 1..NumReplicas |-> [
-            status                     |-> "normal",
+            status                     |-> IF x \in Range(config) THEN "normal" ELSE "shut down",
             viewNumber                 |-> 0,
+            epochNumber                |-> 0,
             opNumber                   |-> 0,
             commitNumber               |-> 0,
             logs                       |-> <<>>,
             batch                      |-> <<>>,
-            lastNonce                  |-> 0
+            lastNonce                  |-> 0,
+            oldConfig                  |-> <<>>,
+            config                     |-> config\*SetToSeq(1..MaxConfigSize) \* TODO
         ]
     ]
     
@@ -43,21 +47,24 @@ INSTANCE StateTransferProtocol
 INSTANCE NormalProtocol
 INSTANCE ViewChangeProtocol 
 INSTANCE RecoveryProtocol
+INSTANCE ReconfigurationProtocol
 
 ----
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating ==
-    /\ \A r \in 1..Len(replicas):
+    /\ \A r \in Range(ConfigReplicas):
         /\ replicas[r].commitNumber >= Cardinality(Requests) \* every request was committed
         /\ replicas[r].viewNumber = MaxViewNumber \* changed maximum views
-    /\ nonce = MaxNumFailures \* maximum failures happened
+\*        /\ replicas[r].epochNumber = MaxEpochNumber \* chaned maximum configs
+\*    /\  nonce = MaxNumFailures \* maximum failures happened
     /\ UNCHANGED <<vars>>
  
 Next ==
     \/ NormalProtocolNext
     \/ ViewChangeProtocolNext
     \/ RecoveryProtocolNext
+\*    \/ ReconfigurationProtocolNext
     \/ Terminating
        
 Spec == 
@@ -77,11 +84,11 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
             \E i \in 1..Len(committedLogs):
                 /\ committedLogs[i] \in CommonLogType
                 /\ committedLogs[i].request = request
-        /\ \A r \in 1..Len(replicas):
+        /\ \A r \in Range(ConfigReplicas):
             replicas[r].logs = committedLogs
       )
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 04 20:09:55 MSK 2023 by sandman
+\* Last modified Mon Jan 23 04:07:05 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman
