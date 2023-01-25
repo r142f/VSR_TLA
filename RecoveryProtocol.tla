@@ -2,12 +2,36 @@
 EXTENDS Declarations
 
 LOCAL INSTANCE Utils
+LOCAL INSTANCE Types
 LOCAL INSTANCE NormalProtocol
+
+CheckFailDuringReconfiguration(r) ==
+   \/ \E i \in 1..Len(replicas):
+     /\ replicas[i].status /= "shut down"
+     /\ IsPrimary(i)
+     /\ Len(replicas[i].logs) > 0
+     /\ replicas[i].logs[Len(replicas[i].logs)] \in ENMetaLogType
+     /\ 
+        LET
+            config == replicas[i].logs[Len(replicas[i].logs)].config
+            f_config == LET fs == {f_i \in 0..Len(config): 2*f_i + 1 <= Len(config)}
+                 IN CHOOSE f_i \in fs: 
+                    \A f_j \in fs:
+                        f_i >= f_j
+        IN Cardinality({_r \in Range(config): replicas[_r].status = "recovering"}) < f_config
+   \/ ~ \E i \in 1..Len(replicas):
+     /\ replicas[i].status /= "shut down"
+     /\ IsPrimary(i)
+     /\ Len(replicas[i].logs) > 0
+     /\ replicas[i].logs[Len(replicas[i].logs)] \in ENMetaLogType
 
 FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
     /\ nonce < MaxNumFailures
     /\ replicas[r].status /= "recovering"
     /\ Cardinality({_r \in Range(replicas[r].config): replicas[_r].status = "recovering"}) < f(r)
+    /\ CheckFailDuringReconfiguration(r)
+    /\ ExistsMaxEpochR
+    /\ Cardinality({_r \in Range(replicas[MaxEpochR].config): replicas[_r].status = "recovering"}) < f(MaxEpochR)
     \* needed to prevent situation when last primary fails during view change
     \* on practice view-change can always proceed to the next primary if the current fails
     /\ replicas[r].config[(MaxViewNumber % ConfigSize(r)) + 1] /= r
@@ -67,5 +91,5 @@ RecoveryProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jan 23 00:11:08 MSK 2023 by sandman
+\* Last modified Tue Jan 24 16:45:11 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

@@ -53,6 +53,7 @@ INSTANCE ReconfigurationProtocol
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating ==
+    /\ ExistsMaxEpochR
     /\ \A r \in Range(ConfigReplicas):
         /\ replicas[r].commitNumber >= Cardinality(Requests) \* every request was committed
         /\ replicas[r].viewNumber = MaxViewNumber \* changed maximum views
@@ -64,7 +65,7 @@ Next ==
     \/ NormalProtocolNext
     \/ ViewChangeProtocolNext
     \/ RecoveryProtocolNext
-\*    \/ ReconfigurationProtocolNext
+    \/ ReconfigurationProtocolNext
     \/ Terminating
        
 Spec == 
@@ -84,11 +85,11 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
             \E i \in 1..Len(committedLogs):
                 /\ committedLogs[i] \in CommonLogType
                 /\ committedLogs[i].request = request
-        /\ \A r \in Range(ConfigReplicas):
-            replicas[r].logs = committedLogs
+\*        /\ \A r \in Range(ConfigReplicas):
+\*            replicas[r].logs = committedLogs
       )
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jan 23 04:07:05 MSK 2023 by sandman
+\* Last modified Wed Jan 25 01:41:12 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

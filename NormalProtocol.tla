@@ -8,6 +8,10 @@ LOCAL INSTANCE ReconfigurationProtocol
                   
 TryUpdateBatch(r) ==
     /\ IsPrimary(r)
+    /\ ~ \E i \in 1..NumReplicas:                            \* check that we can accept request
+        /\ replicas[i].epochNumber > replicas[r].epochNumber
+        /\ replicas[i].status = "normal"
+        /\ IsPrimary(i)
     /\ ~ PreparingReconfiguration(r)
     /\ Len(replicas[r].batch) < 1                            \* only batches of size 1 are allowed (to minimize state space)
     /\ \/ replicas[r].opNumber > replicas[r].commitNumber    \* check if there is an uncommitted batch
@@ -62,22 +66,74 @@ HandlePrepare(r) == \* See 4.1.4 of the paper.
                                      ![r].logs = Append(@, primary.logs[replicas[r].opNumber + 1])
                  ]
         /\ UNCHANGED <<committedLogs>> 
-                   
+
+CheckEpochEN(r) == 
+    /\ Len(replicas[r].logs) > 0
+    /\ \E i \in 1..replicas[r].opNumber:
+        /\ replicas[r].logs[i] \in ENMetaLogType
+        /\ replicas[r].logs[i].epochNumber > replicas[r].epochNumber
+
 HandlePrepareOk(r) == \* See 4.1.5 of the paper.
     /\ IsPrimary(r)
     /\ ~ PreparingReconfiguration(r)
-    /\ Cardinality({
-            i \in Range(replicas[r].config): 
-                /\ replicas[i].viewNumber = replicas[r].viewNumber
-                /\ replicas[i].opNumber >= replicas[r].opNumber
-                /\ replicas[i].status = "normal"
-        }) >= majority(r) 
-    /\ replicas[r].commitNumber /= replicas[r].opNumber
-    /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
-    /\ committedLogs' =
-        committedLogs 
-            \o
-        SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
+    /\ Len(replicas[r].logs) > 0
+    /\ \/ /\ ~ \E l \in 1..Len(replicas[r].logs):
+              /\ replicas[r].logs[l] \in ENMetaLogType
+              /\ replicas[r].logs[l].epochNumber > replicas[r].epochNumber
+          /\ Cardinality({
+                  i \in Range(replicas[r].config): 
+                      /\ replicas[i].viewNumber = replicas[r].viewNumber
+                      /\ replicas[i].opNumber >= replicas[r].opNumber
+                      /\ replicas[i].status = "normal"
+              }) >= majority(r) 
+          /\ replicas[r].commitNumber /= replicas[r].opNumber
+          /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
+          /\ committedLogs' =
+                 committedLogs 
+                     \o
+                 SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
+       \/ /\ \E l \in 1..Len(replicas[r].logs):
+              /\ replicas[r].logs[l] \in ENMetaLogType
+              /\ replicas[r].logs[l].epochNumber > replicas[r].epochNumber
+              /\ Cardinality({
+                      i \in Range(replicas[r].config): 
+                          /\ replicas[i].viewNumber = replicas[r].viewNumber
+                          /\ replicas[i].opNumber >= l
+                          /\ replicas[i].status = "normal"
+                  }) >= majority(r) 
+              /\ replicas[r].commitNumber /= l
+              /\ replicas' = 
+                    [
+                        replicas EXCEPT ![r].commitNumber = l,
+                                        ![r].epochNumber = @ + 1,
+                                        ![r].viewNumber = IF r \in Range(replicas[r].logs[l].config) THEN @ + 1 ELSE @,
+                                        ![r].status = IF r \in Range(replicas[r].logs[l].config) THEN "view-change" ELSE "shut down",
+                                        ![r].oldConfig = replicas[r].config,
+                                        ![r].config = replicas[r].logs[l].config
+                    ]
+              /\ committedLogs' =
+                     committedLogs 
+                         \o
+                     SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
+    \* \/ /\ ~ CheckEpochEN(r)
+    \*    /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
+    \*    /\ committedLogs' =
+    \*        committedLogs 
+    \*            \o
+    \*        SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
+\*    \/ /\ CheckEpochEN(r)
+\*       /\ \E i \in 1..replicas[r].opNumber:
+\*        /\ replicas[r].logs[i] \in ENMetaLogType
+\*        /\ replicas[r].logs[i].epochNumber > replicas[r].epochNumber
+\*        /\ replicas' = [
+\*            replicas EXCEPT ![r].commitNumber = i,
+\*                            ![r].epochNumber = replicas[r].logs[i].epochNumber,
+\*                            ![r].status = IF r \in Range(replicas[i].logs[i].config) THEN "view-change" ELSE "shut down",
+\*                            ![r].viewNumber = @ + 1,
+\*                            ![r].oldConfig = replicas[r].config,
+\*                            ![r].config = replicas[r].logs[i].config
+\*           ]
+
     
 HandleCommit(r) == \* See 4.1.7 of the paper.
     LET 
@@ -101,5 +157,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jan 23 02:49:13 MSK 2023 by sandman
+\* Last modified Wed Jan 25 03:12:04 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

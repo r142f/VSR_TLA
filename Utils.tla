@@ -18,6 +18,8 @@ Perms(seq) ==
 
 Min(a, b) == IF a < b THEN a ELSE b
 
+Max(a, b) == IF a < b THEN b ELSE a
+
 LongestCommonSubsequence(s1, s2) ==
     LET
         setOfIndices == {i \in 1..Min(Len(s1), Len(s2)): SubSeq(s1, 1, i) = SubSeq(s2, 1, i)} \cup {0}
@@ -50,7 +52,7 @@ f(r) ==  \* number of replicas that can fail simultaniously
     IN CHOOSE f_i \in fs: 
         \A f_j \in fs:
             f_i >= f_j
-            
+                    
 majority(r) == ConfigSize(r) \div 2 + 1
 
 GetPrimary(r) == 
@@ -60,16 +62,20 @@ GetPrimary(r) ==
 
 IsPrimary(r) == GetPrimary(r) = r   
 
-ConfigReplicas ==
-    LET
-        r ==
-            CHOOSE r \in 1..Len(replicas):
+ExistsMaxEpochR == 
+    \E r \in 1..Len(replicas):
+        /\ replicas[r].status /= "shut down"
+        /\ \A r_j \in 1..Len(replicas):
+                    replicas[r_j].epochNumber <= replicas[r].epochNumber
+
+MaxEpochR == CHOOSE r \in 1..Len(replicas):
                 /\ replicas[r].status /= "shut down"
                 /\ \A r_j \in 1..Len(replicas):
                     replicas[r_j].epochNumber <= replicas[r].epochNumber
-    IN replicas[r].config
+
+ConfigReplicas == replicas[MaxEpochR].config
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jan 23 01:31:42 MSK 2023 by sandman
+\* Last modified Wed Jan 25 02:51:41 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman
