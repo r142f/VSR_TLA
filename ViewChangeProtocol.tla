@@ -7,7 +7,7 @@ LOCAL INSTANCE NormalProtocol
 LOCAL INSTANCE ReconfigurationProtocol
 
 GracefulDemote(r) == \* M_d
-    /\ replicas[r].viewNumber < MaxViewNumber
+    /\ replicas[r].viewNumber < MaxViewNumber - 1
     /\ IsPrimary(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].opNumber = replicas[r].commitNumber
@@ -16,20 +16,16 @@ GracefulDemote(r) == \* M_d
                         ![r].status     = "view-change"
        ]
     /\ UNCHANGED <<committedLogs>>
-    
-ReplicaWaitsForReconfiguration(r) ==
-\*    IF 
-        /\ Len(replicas[r].logs) > 0
-        /\ replicas[r].logs[Len(replicas[r].logs)] \in ENMetaLogType
-        /\ replicas[r].logs[Len(replicas[r].logs)].epochNumber > replicas[r].epochNumber
-\*    THEN TRUE
-\*    ELSE FALSE
 
 StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     /\ replicas[r].status /= "shut down"
-    /\ replicas[r].viewNumber < MaxViewNumber - 1
+    /\ \/ replicas[r].viewNumber < MaxViewNumber - 1
+       \/ /\ replicas[r].viewNumber < MaxViewNumber \* epoch was changed, so we won't use VC while EC
+          /\ ExistsFunctioningLatestConfig
+          /\ replicas[ReplicaWithLatestFunctioningConfig].epochNumber = MaxEpochNumber
+       \/ /\ replicas[GetPrimary(r)].status = "recovering" \* for a dead primary
+          /\ replicas[r].viewNumber < QuasiMaxViewNumber
     /\ ~ IsPrimary(r)
-\*    /\ ~ ReplicaWaitsForReconfiguration(r)
     /\ replicas' = [
         replicas EXCEPT ![r].viewNumber = @ + 1,
                         ![r].status     = "view-change"
@@ -38,7 +34,6 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     
 HandleStartViewChange(r) ==
     \* See 4.2.1's end of the paper. 
-\*       /\ ~ PreparingReconfiguration(r)
        /\ \E i \in Range(replicas[r].config):
           \/ /\ replicas[i].viewNumber > replicas[r].viewNumber
              /\ \/ /\ replicas[i].epochNumber = replicas[r].epochNumber
@@ -48,22 +43,13 @@ HandleStartViewChange(r) ==
                                         ![r].status     = "view-change"
                        ]
                    /\ UNCHANGED <<committedLogs>>
-\*                \/ /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*\*                   /\ replicas[i].status /= "recovering"
-\*                   /\ DownloadTillEN(i, r)
-\*                   /\ UNCHANGED <<committedLogs>>
-\*          \/ /\ replicas[i].viewNumber = replicas[r].viewNumber
-\*             /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*             /\ DownloadTillEN(i, r)
-\*             /\ UNCHANGED  <<committedLogs>>
-                 
 
     \* See 4.2.2 of the paper. Send "DoViewChange" msg was here
 
 GetLastNormalViewNumber(replica) == 
     IF \E i \in 1..Len(replica.logs): replica.logs[i] \in VNMetaLogType
     THEN
-        CHOOSE viewNumber \in 1..MaxViewNumber:
+        CHOOSE viewNumber \in 1..QuasiMaxViewNumber:
             \A i \in 1..Len(replica.logs):
                 replica.logs[i] \in VNMetaLogType => replica.logs[i].viewNumber <= viewNumber
     ELSE 0
@@ -71,15 +57,12 @@ GetLastNormalViewNumber(replica) ==
 HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
         LET 
             viewNumbers == {
-                viewNumber \in 0..MaxViewNumber:
+                viewNumber \in 0..QuasiMaxViewNumber:
                     /\ Cardinality({
                             i \in Range(replicas[r].config):
                                /\ replicas[i].viewNumber = viewNumber
                                /\ replicas[i].epochNumber = replicas[r].epochNumber
                                /\ replicas[i].status /= "recovering"
-\*                               /\ IF Len(replicas[i].logs) > 0
-\*                                  THEN ~ (replicas[i].logs[Len(replicas[i].logs)] \in ENMetaLogType /\ replicas[i].status = "view-change")
-\*                                  ELSE TRUE
                           }) >= majority(r)
                     /\ \/ /\ replicas[r].status = "normal"
                           /\ replicas[r].viewNumber + 1 = viewNumber
@@ -92,7 +75,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
            /\ viewNumbers /= {}
            /\ LET
                 viewNumber == 
-                    CHOOSE viewNumber \in 0..MaxViewNumber:
+                    CHOOSE viewNumber \in 0..QuasiMaxViewNumber:
                         \A x \in viewNumbers:
                             viewNumber >= x
                 doViewChangeReplicas == 
@@ -137,12 +120,10 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                        ]
                       ]
                      /\ UNCHANGED <<committedLogs>>
-\*                \/ /\ replicaWithNewCommitNumber.epochNumber > replicas[r].epochNumber
-\*                   /\ DownloadTillEN(replicaWithNewCommitNumberIdx, r)
-\*                   /\ UNCHANGED  <<committedLogs>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
     /\ \E i \in Range(replicas[r].config):
+        /\ replicas[r].epochNumber = replicas[i].epochNumber
         /\ \/ /\ replicas[r].status = "view-change"
               /\ replicas[i].status = "normal"
               /\ IsPrimary(i)
@@ -152,7 +133,8 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
               /\ GetPrimary(i) >= i
               /\ replicas[r].viewNumber < replicas[i].viewNumber 
         /\
-            LET logIdxWithVNMetaLog == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
+            LET
+                logIdxWithVNMetaLog == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
             IN replicas' = [
                 replicas EXCEPT ![r] = [
                     status                     |-> IF r \in Range(replicas[i].config) THEN "normal" ELSE "shut down",
@@ -163,23 +145,15 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
                     logs                       |-> SubSeq(replicas[i].logs, 1, logIdxWithVNMetaLog),
                     batch                      |-> <<>>,
                     lastNonce                  |-> replicas[r].lastNonce,
-                    oldConfig                  |-> replicas[i].oldConfig,
-                    config                     |-> replicas[i].config
+                    oldConfig                  |-> replicas[r].oldConfig,
+                    config                     |-> replicas[r].config
                 ]
             ]
         /\ UNCHANGED <<committedLogs>>
-
-\*SVC == {r \in 1..Len(replicas): StartViewChange(r)} 
-\*HSVC == {r \in 1..Len(replicas): HandleStartViewChange(r)} 
-\*HDVC == {r \in 1..Len(replicas): HandleDoViewChange(r)} 
-\*HSV == {r \in 1..Len(replicas): HandleStartView(r)} 
-\*GD == {r \in 1..Len(replicas): GracefulDemote(r)} 
-
  
 ViewChangeProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "recovering"
-       /\ replicas[r].status /= "transitioning"
        /\ \/ StartViewChange(r)
           \/ HandleStartViewChange(r)
           \/ HandleDoViewChange(r)
@@ -189,5 +163,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 25 00:22:49 MSK 2023 by sandman
+\* Last modified Thu Jan 26 08:00:17 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

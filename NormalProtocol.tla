@@ -9,10 +9,10 @@ LOCAL INSTANCE ReconfigurationProtocol
 TryUpdateBatch(r) ==
     /\ IsPrimary(r)
     /\ ~ \E i \in 1..NumReplicas:                            \* check that we can accept request
-        /\ replicas[i].epochNumber > replicas[r].epochNumber
+        /\ replicas[i].epochNumber > replicas[r].epochNumber \* we lose our right to handle requests after new epoch commit
         /\ replicas[i].status = "normal"
         /\ IsPrimary(i)
-    /\ ~ PreparingReconfiguration(r)
+    /\ ~ PreparingReconfiguration(r)                         \* during reconfiguration we stop requests handling
     /\ Len(replicas[r].batch) < 1                            \* only batches of size 1 are allowed (to minimize state space)
     /\ \/ replicas[r].opNumber > replicas[r].commitNumber    \* check if there is an uncommitted batch
        \/ /\ replicas[r].opNumber = replicas[r].commitNumber \* or force replica to prepare batch
@@ -105,7 +105,7 @@ HandlePrepareOk(r) == \* See 4.1.5 of the paper.
               /\ replicas' = 
                     [
                         replicas EXCEPT ![r].commitNumber = l,
-                                        ![r].epochNumber = @ + 1,
+                                        ![r].epochNumber = replicas[r].logs[l].epochNumber,
                                         ![r].viewNumber = IF r \in Range(replicas[r].logs[l].config) THEN @ + 1 ELSE @,
                                         ![r].status = IF r \in Range(replicas[r].logs[l].config) THEN "view-change" ELSE "shut down",
                                         ![r].oldConfig = replicas[r].config,
@@ -115,25 +115,6 @@ HandlePrepareOk(r) == \* See 4.1.5 of the paper.
                      committedLogs 
                          \o
                      SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
-    \* \/ /\ ~ CheckEpochEN(r)
-    \*    /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
-    \*    /\ committedLogs' =
-    \*        committedLogs 
-    \*            \o
-    \*        SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
-\*    \/ /\ CheckEpochEN(r)
-\*       /\ \E i \in 1..replicas[r].opNumber:
-\*        /\ replicas[r].logs[i] \in ENMetaLogType
-\*        /\ replicas[r].logs[i].epochNumber > replicas[r].epochNumber
-\*        /\ replicas' = [
-\*            replicas EXCEPT ![r].commitNumber = i,
-\*                            ![r].epochNumber = replicas[r].logs[i].epochNumber,
-\*                            ![r].status = IF r \in Range(replicas[i].logs[i].config) THEN "view-change" ELSE "shut down",
-\*                            ![r].viewNumber = @ + 1,
-\*                            ![r].oldConfig = replicas[r].config,
-\*                            ![r].config = replicas[r].logs[i].config
-\*           ]
-
     
 HandleCommit(r) == \* See 4.1.7 of the paper.
     LET 
@@ -157,5 +138,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 25 03:12:04 MSK 2023 by sandman
+\* Last modified Thu Jan 26 05:45:55 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

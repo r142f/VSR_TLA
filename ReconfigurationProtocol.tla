@@ -15,9 +15,6 @@ HandleReconfigurationRequest(r) ==
     /\ replicas[r].status = "normal"
     /\ replicas[r].epochNumber < MaxEpochNumber
     /\ replicas[r].viewNumber < MaxViewNumber
-\*    /\ ~ \E i \in 1..Len(replicas[r].logs):
-\*           /\ replicas[r].logs[i] \in ENMetaLogType
-\*           /\ replicas[r].logs[i].epochNumber = replicas[r].epochNumber + 1
     /\ ~ PreparingReconfiguration(r)
     /\ replicas[r].opNumber = replicas[r].commitNumber \* check if there is no uncommitted batch
     /\ replicas[r].batch = <<>>                        \* batch must be empty
@@ -30,23 +27,6 @@ HandleReconfigurationRequest(r) ==
                                ![r].logs = Append(@, enMetaLog)
               ]
     /\ UNCHANGED <<committedLogs>>
-      
-\*HandleReconfigurationPrepare(r) ==
-\*    /\ replicas[r].viewNumber > 0
-\*    /\ LET
-\*        primaryConfigIdx == ((replicas[r].viewNumber - 1) % ConfigSize(r)) + 1
-\*        primaryIdx == replicas[r].config[primaryConfigIdx]
-\*        primary == replicas[primaryIdx]
-\*       IN /\ r /= primaryIdx
-\*          /\ primary.viewNumber + 1 = replicas[r].viewNumber
-\*          /\ replicas[r].status = "view-change"
-\*          /\ primary.opNumber > replicas[r].opNumber
-\*          /\ primary
-\*          /\ replicas' = [
-\*                 replicas EXCEPT ![r].opNumber = @ + 1,
-\*                                 ![r].logs = Append(@, primary.logs[replicas[r].opNumber + 1])
-\*             ]
-\*    /\ UNCHANGED <<committedLogs>> 
 
 HandleReconfigurationPrepareOk(r) == \* See 4.1.5 of the paper.
     /\ PreparingReconfiguration(r)
@@ -72,7 +52,7 @@ HandleReconfigurationPrepareOk(r) == \* See 4.1.5 of the paper.
         SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
 
 
-ProcessInTheNewGroup1(r) ==
+ProcessInTheNewGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
         /\ 
@@ -87,11 +67,11 @@ ProcessInTheNewGroup1(r) ==
             /\ r \in Range(enMetaLog.config)
             /\ replicas' = 
                 [
-                    replicas EXCEPT ![r].opNumber = replicas[i].opNumber,
-                                    ![r].commitNumber = replicas[i].commitNumber,
-                                    ![r].logs = replicas[i].logs, \* TODO
+                    replicas EXCEPT ![r].opNumber = enMetaLogIdx,
+                                    ![r].commitNumber = enMetaLogIdx,
+                                    ![r].logs = SafeSubSeq(replicas[i].logs, 1, replicas[r].commitNumber) \o SafeSubSeq(replicas[i].logs, replicas[r].commitNumber + 1, enMetaLogIdx), \* TODO
                                     ![r].epochNumber = enMetaLog.epochNumber,
-                                    ![r].status = "view-change", \*IF replicas[i].status = "shut down" THEN "view-change" ELSE replicas[i].status,
+                                    ![r].status = "view-change",
                                     ![r].oldConfig = replicas[r].config,
                                     ![r].config = enMetaLog.config,
                                     ![r].viewNumber = Max(replicas[r].viewNumber + 1, IF replicas[i].status = "shut down" THEN replicas[i].viewNumber + 1 ELSE replicas[i].viewNumber)
@@ -99,7 +79,7 @@ ProcessInTheNewGroup1(r) ==
             /\ UNCHANGED <<committedLogs>>
            
 
-ProcessInTheOldGroup1(r) ==
+ProcessInTheOldGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
         /\ 
@@ -115,9 +95,9 @@ ProcessInTheOldGroup1(r) ==
             /\ ~ r \in Range(enMetaLog.config)
             /\ replicas' = 
                 [
-                    replicas EXCEPT ![r].opNumber = replicas[i].opNumber,
-                                    ![r].commitNumber = replicas[i].commitNumber,
-                                    ![r].logs = replicas[i].logs, \* TODO
+                    replicas EXCEPT ![r].opNumber = enMetaLogIdx,
+                                    ![r].commitNumber = enMetaLogIdx,
+                                    ![r].logs = SafeSubSeq(replicas[i].logs, 1, replicas[r].commitNumber) \o SafeSubSeq(replicas[i].logs, replicas[r].commitNumber + 1, enMetaLogIdx), \* TODO
                                     ![r].epochNumber = enMetaLog.epochNumber,
                                     ![r].status = "shut down",
                                     ![r].oldConfig = replicas[r].config,
@@ -130,18 +110,14 @@ ProcessInTheOldGroup1(r) ==
 ReconfigurationProtocolNext == \* M of the scheme
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "recovering"
-\*       /\ replicas[r].status /= "view-change"
        /\ \/ HandleReconfigurationRequest(r)
-\*          \/ HandleReconfigurationPrepare(r)
           \/ HandleReconfigurationPrepareOk(r)
-          \/ ProcessInTheNewGroup1(r)
-          \/ ProcessInTheOldGroup1(r)
-\*          \/ ProcessInTheOldGroup2(r)
-\*          \/ HandleReconfigurationCommit(r)
+          \/ ProcessInTheNewGroup(r)
+          \/ ProcessInTheOldGroup(r)
        
     /\ UNCHANGED <<nonce>>
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 25 03:30:43 MSK 2023 by sandman
+\* Last modified Thu Jan 26 06:18:09 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

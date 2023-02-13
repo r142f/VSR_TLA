@@ -11,6 +11,7 @@ HandleNewState(r) == \* See 5.2 of the paper.
         /\ ~ (primary.opNumber = replicas[r].opNumber /\ primary.viewNumber = replicas[r].viewNumber)
         /\ primary.opNumber > replicas[r].opNumber
         /\ primary.viewNumber >= replicas[r].viewNumber
+        /\ primary.epochNumber = replicas[r].epochNumber
         /\ primary.status = "normal"
         /\ replicas' = [
             replicas EXCEPT ![r].opNumber = primary.opNumber,
@@ -22,9 +23,9 @@ HandleNewState(r) == \* See 5.2 of the paper.
                                     logsToAdd == SafeSubSeq(primary.logs, Len(logs) + 1, idxOfPrimaryLog)
                                 IN logs \o logsToAdd,
                             ![r].commitNumber = primary.commitNumber,
-                            ![r].epochNumber = primary.epochNumber,
-                            ![r].config = primary.config,
-                            ![r].oldConfig = primary.oldConfig,
+\*                            ![r].epochNumber = primary.epochNumber,
+\*                            ![r].config = primary.config,
+\*                            ![r].oldConfig = primary.oldConfig,
                             ![r].viewNumber = primary.viewNumber
                             
            ]
@@ -33,5 +34,5 @@ HandleNewState(r) == \* See 5.2 of the paper.
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jan 24 19:57:22 MSK 2023 by sandman
+\* Last modified Thu Jan 26 04:51:44 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

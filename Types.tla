@@ -12,11 +12,11 @@ ConfigType ==
             }
     }
 
-MaxLogsSize == Cardinality(Requests) + MaxViewNumber + MaxEpochNumber
+MaxLogsSize == Cardinality(Requests) + QuasiMaxViewNumber + MaxEpochNumber
 
 CommonLogType == [request: Requests]
 
-VNMetaLogType == [viewNumber: 1..MaxViewNumber]
+VNMetaLogType == [viewNumber: 1..QuasiMaxViewNumber]
 
 ENMetaLogType == 
     [
@@ -60,7 +60,7 @@ BatchType == \* requests are send from primary replica to others using batching
 ReplicasTypeOK == \* replicas type invariant
     \A r \in 1..NumReplicas: TRUE
         /\ replicas[r].status \in {"normal", "view-change", "recovering", "transitioning", "shut down"}
-        /\ replicas[r].viewNumber \in 0..MaxViewNumber
+        /\ replicas[r].viewNumber \in 0..QuasiMaxViewNumber
         /\ replicas[r].epochNumber \in 0..MaxEpochNumber
         /\ replicas[r].opNumber \in 0..MaxLogsSize
         /\ replicas[r].commitNumber \in 0..MaxLogsSize
@@ -79,5 +79,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jan 23 02:28:49 MSK 2023 by sandman
+\* Last modified Thu Jan 26 02:03:04 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman
