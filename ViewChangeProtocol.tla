@@ -7,7 +7,7 @@ LOCAL INSTANCE NormalProtocol
 LOCAL INSTANCE ReconfigurationProtocol
 
 GracefulDemote(r) == \* M_d
-    /\ replicas[r].viewNumber < MaxViewNumber - 1
+    /\ vcCount < MaxViewNumber
     /\ IsPrimary(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].opNumber = replicas[r].commitNumber
@@ -15,17 +15,17 @@ GracefulDemote(r) == \* M_d
         replicas EXCEPT ![r].viewNumber = @ + 1,
                         ![r].status     = "view-change"
        ]
+    /\ vcCount' = vcCount + 1
     /\ UNCHANGED <<committedLogs>>
 
 StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     /\ replicas[r].status /= "shut down"
-    /\ \/ replicas[r].viewNumber < MaxViewNumber - 1
-       \/ /\ replicas[r].viewNumber < MaxViewNumber \* epoch was changed, so we won't use VC while EC
-          /\ ExistsFunctioningLatestConfig
-          /\ replicas[ReplicaWithLatestFunctioningConfig].epochNumber = MaxEpochNumber
+    /\ ~ IsPrimary(r)
+    /\ \/ /\ vcCount < MaxViewNumber
+          /\ vcCount' = vcCount + 1
        \/ /\ replicas[GetPrimary(r)].status = "recovering" \* for a dead primary
           /\ replicas[r].viewNumber < QuasiMaxViewNumber
-    /\ ~ IsPrimary(r)
+          /\ UNCHANGED <<vcCount>>
     /\ replicas' = [
         replicas EXCEPT ![r].viewNumber = @ + 1,
                         ![r].status     = "view-change"
@@ -42,7 +42,7 @@ HandleStartViewChange(r) ==
                         replicas EXCEPT ![r].viewNumber = replicas[i].viewNumber,
                                         ![r].status     = "view-change"
                        ]
-                   /\ UNCHANGED <<committedLogs>>
+                   /\ UNCHANGED <<committedLogs, vcCount>>
 
     \* See 4.2.2 of the paper. Send "DoViewChange" msg was here
 
@@ -119,7 +119,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                            config                     |-> replicas[r].config
                        ]
                       ]
-                     /\ UNCHANGED <<committedLogs>>
+                     /\ UNCHANGED <<committedLogs, vcCount>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
     /\ \E i \in Range(replicas[r].config):
@@ -149,7 +149,7 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
                     config                     |-> replicas[r].config
                 ]
             ]
-        /\ UNCHANGED <<committedLogs>>
+        /\ UNCHANGED <<committedLogs, vcCount>>
  
 ViewChangeProtocolNext ==
     /\ \E r \in 1..Len(replicas):
@@ -163,5 +163,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 08:00:17 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:29:26 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

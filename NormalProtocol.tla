@@ -134,9 +134,9 @@ NormalProtocolNext == \* M of the scheme
           \/ HandleNewState(r)
           \/ HandlePrepareOk(r)
           \/ HandleCommit(r)
-    /\ UNCHANGED <<nonce>>
+    /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 05:45:55 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:15:56 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

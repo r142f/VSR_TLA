@@ -4,7 +4,7 @@ EXTENDS Declarations
 INSTANCE Utils
 INSTANCE Types
     
-vars == <<replicas, nonce, committedLogs>>
+vars == <<replicas, nonce, vcCount, committedLogs>>
 
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
     \A i \in 1..Len(replicas):
@@ -34,11 +34,14 @@ ReplicasInit == \* see fig. 2 of the paper for explanation
     
 NonceInit == nonce = 0
 
+VCCountInit == vcCount = 0
+
 CommittedLogsInit == committedLogs = <<>>
 
 Init == 
     /\ ReplicasInit
     /\ NonceInit
+    /\ VCCountInit
     /\ CommittedLogsInit
     
 ----
@@ -54,8 +57,12 @@ INSTANCE ReconfigurationProtocol
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating ==
     /\ ExistsFunctioningLatestConfig
-    /\ \A r \in Range(LatestConfigReplicas):
-        /\ replicas[r].commitNumber >= Cardinality(Requests) \* every request was committed
+    /\ \A r \in Range(LatestConfigReplicas): \* every request was committed
+        /\ \A request \in Requests:
+            \E l \in 1..Len(replicas[r].logs):
+                /\ replicas[r].logs[l] \in CommonLogType
+                /\ replicas[r].logs[l].request = request
+                /\ replicas[r].commitNumber >= l            
         /\ \/ replicas[r].viewNumber >= MaxViewNumber \* changed maximum views
            \/ /\ replicas[ReplicaWithLatestFunctioningConfig].epochNumber = MaxEpochNumber
               /\ Len(LatestConfigReplicas) = 1
@@ -92,5 +99,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 04:47:51 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:25:53 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

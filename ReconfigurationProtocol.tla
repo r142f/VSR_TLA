@@ -14,7 +14,7 @@ HandleReconfigurationRequest(r) ==
     /\ IsPrimary(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].epochNumber < MaxEpochNumber
-    /\ replicas[r].viewNumber < MaxViewNumber
+\*    /\ replicas[r].viewNumber < MaxViewNumber
     /\ ~ PreparingReconfiguration(r)
     /\ replicas[r].opNumber = replicas[r].commitNumber \* check if there is no uncommitted batch
     /\ replicas[r].batch = <<>>                        \* batch must be empty
@@ -115,9 +115,9 @@ ReconfigurationProtocolNext == \* M of the scheme
           \/ ProcessInTheNewGroup(r)
           \/ ProcessInTheOldGroup(r)
        
-    /\ UNCHANGED <<nonce>>
+    /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 06:18:09 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:20:02 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

@@ -163,9 +163,9 @@ RecoveryProtocolNext ==
        /\ replicas[r].status /= "shut down"
        /\ \/ FailAndSendRecovery(r)
           \/ HandleRecoveryResponse(r)
-    /\ UNCHANGED <<committedLogs>>
+    /\ UNCHANGED <<committedLogs, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 08:52:59 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:16:21 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

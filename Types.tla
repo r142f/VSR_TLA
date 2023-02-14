@@ -72,12 +72,15 @@ ReplicasTypeOK == \* replicas type invariant
    
 NonceTypeOK == nonce \in 0..MaxNumFailures \* nonce type invariant
 
+VCCountTypeOK == vcCount \in 0..MaxViewNumber
+
 TypeOK == \* type invariant
     /\ ReplicasTypeOK
     /\ NonceTypeOK
+    /\ VCCountTypeOK
     /\ CommittedLogsTypeOK
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jan 26 02:03:04 MSK 2023 by sandman
+\* Last modified Tue Feb 14 13:27:04 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman
