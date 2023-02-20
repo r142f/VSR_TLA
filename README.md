@@ -1,2 +1,2 @@
 # Пример настроек модели
-![пример настроек модели](https://i.ibb.co/1J3nfdx/Screenshot-from-2023-01-17-20-09-56.png)
+![пример настроек модели](https://i.ibb.co/kgxhRGP/Screenshot-from-2023-02-20-15-06-28.png)
