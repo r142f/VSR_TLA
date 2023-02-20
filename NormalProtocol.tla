@@ -131,12 +131,12 @@ NormalProtocolNext == \* M of the scheme
        /\ replicas[r].status = "normal"
        /\ \/ HandleRequest(r)
           \/ HandlePrepare(r)
-          \/ HandleNewState(r)
+\*          \/ HandleNewState(r)
           \/ HandlePrepareOk(r)
           \/ HandleCommit(r)
     /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:15:56 MSK 2023 by sandman
+\* Last modified Thu Feb 16 22:02:07 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

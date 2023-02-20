@@ -58,6 +58,7 @@ INSTANCE ReconfigurationProtocol
 Terminating ==
     /\ ExistsFunctioningLatestConfig
     /\ \A r \in Range(LatestConfigReplicas): \* every request was committed
+        /\ replicas[r].status = "normal"
         /\ \A request \in Requests:
             \E l \in 1..Len(replicas[r].logs):
                 /\ replicas[r].logs[l] \in CommonLogType
@@ -99,5 +100,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:25:53 MSK 2023 by sandman
+\* Last modified Wed Feb 15 14:52:40 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

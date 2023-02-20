@@ -3,6 +3,8 @@ EXTENDS Declarations
 
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
+LOCAL INSTANCE StateTransferProtocol
+
 
 PreparingReconfiguration(r) ==
     /\ IsPrimary(r)
@@ -14,7 +16,6 @@ HandleReconfigurationRequest(r) ==
     /\ IsPrimary(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].epochNumber < MaxEpochNumber
-\*    /\ replicas[r].viewNumber < MaxViewNumber
     /\ ~ PreparingReconfiguration(r)
     /\ replicas[r].opNumber = replicas[r].commitNumber \* check if there is no uncommitted batch
     /\ replicas[r].batch = <<>>                        \* batch must be empty
@@ -28,7 +29,7 @@ HandleReconfigurationRequest(r) ==
               ]
     /\ UNCHANGED <<committedLogs>>
 
-HandleReconfigurationPrepareOk(r) == \* See 4.1.5 of the paper.
+HandleReconfigurationPrepareOk(r) ==
     /\ PreparingReconfiguration(r)
     /\ Cardinality({
             i \in Range(replicas[r].config): 
@@ -65,17 +66,18 @@ ProcessInTheNewGroup(r) ==
             IN
             /\ replicas[i].commitNumber >= enMetaLogIdx
             /\ r \in Range(enMetaLog.config)
-            /\ replicas' = 
-                [
-                    replicas EXCEPT ![r].opNumber = enMetaLogIdx,
-                                    ![r].commitNumber = enMetaLogIdx,
-                                    ![r].logs = SafeSubSeq(replicas[i].logs, 1, replicas[r].commitNumber) \o SafeSubSeq(replicas[i].logs, replicas[r].commitNumber + 1, enMetaLogIdx), \* TODO
-                                    ![r].epochNumber = enMetaLog.epochNumber,
-                                    ![r].status = "view-change",
-                                    ![r].oldConfig = replicas[r].config,
-                                    ![r].config = enMetaLog.config,
-                                    ![r].viewNumber = Max(replicas[r].viewNumber + 1, IF replicas[i].status = "shut down" THEN replicas[i].viewNumber + 1 ELSE replicas[i].viewNumber)
-                ]
+            /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx
+                  /\ Download(i, r, enMetaLogIdx)
+               \/ /\ replicas[r].commitNumber = enMetaLogIdx
+                  /\ replicas' = 
+                      [
+                          replicas EXCEPT ![r].status = "view-change",
+                                          ![r].viewNumber = Max(replicas[r].viewNumber + 1, IF replicas[i].status = "shut down" THEN replicas[i].viewNumber + 1 ELSE replicas[i].viewNumber),
+                                          ![r].epochNumber = enMetaLog.epochNumber,
+                                          ![r].oldConfig = replicas[r].config,
+                                          ![r].config = enMetaLog.config,
+                                          ![r].batch = <<>>
+                      ]
             /\ UNCHANGED <<committedLogs>>
            
 
@@ -93,17 +95,30 @@ ProcessInTheOldGroup(r) ==
             /\ replicas[i].commitNumber >= enMetaLogIdx
             /\ r \in Range(replicas[i].oldConfig)
             /\ ~ r \in Range(enMetaLog.config)
-            /\ replicas' = 
-                [
-                    replicas EXCEPT ![r].opNumber = enMetaLogIdx,
-                                    ![r].commitNumber = enMetaLogIdx,
-                                    ![r].logs = SafeSubSeq(replicas[i].logs, 1, replicas[r].commitNumber) \o SafeSubSeq(replicas[i].logs, replicas[r].commitNumber + 1, enMetaLogIdx), \* TODO
-                                    ![r].epochNumber = enMetaLog.epochNumber,
-                                    ![r].status = "shut down",
-                                    ![r].oldConfig = replicas[r].config,
-                                    ![r].config = enMetaLog.config,
-                                    ![r].viewNumber = IF replicas[i].status = "shut down" THEN replicas[i].viewNumber ELSE replicas[i].viewNumber - 1
-                ]
+            /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx
+                  /\ Download(i, r, enMetaLogIdx)
+               \/ /\ replicas[r].commitNumber = enMetaLogIdx
+                  /\ replicas' = 
+                      [
+                          replicas EXCEPT ![r].status = "shut down",
+                                          ![r].viewNumber = IF replicas[i].status = "shut down" THEN replicas[i].viewNumber ELSE replicas[i].viewNumber - 1,
+                                          ![r].epochNumber = enMetaLog.epochNumber,
+                                          ![r].oldConfig = replicas[r].config,
+                                          ![r].config = enMetaLog.config,
+                                          ![r].batch = <<>>
+                      ]
+            
+\*            /\ replicas' = 
+\*                [
+\*                    replicas EXCEPT ![r].opNumber = enMetaLogIdx,
+\*                                    ![r].commitNumber = enMetaLogIdx,
+\*                                    ![r].logs = SafeSubSeq(replicas[i].logs, 1, replicas[r].commitNumber) \o SafeSubSeq(replicas[i].logs, replicas[r].commitNumber + 1, enMetaLogIdx), \* TODO
+\*                                    ![r].epochNumber = enMetaLog.epochNumber,
+\*                                    ![r].status = "shut down",
+\*                                    ![r].oldConfig = replicas[r].config,
+\*                                    ![r].config = enMetaLog.config,
+\*                                    ![r].viewNumber = IF replicas[i].status = "shut down" THEN replicas[i].viewNumber ELSE replicas[i].viewNumber - 1
+\*                ]
             /\ UNCHANGED <<committedLogs>>
   
 
@@ -119,5 +134,5 @@ ReconfigurationProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:20:02 MSK 2023 by sandman
+\* Last modified Thu Feb 16 13:08:35 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

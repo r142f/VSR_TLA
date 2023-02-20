@@ -76,9 +76,9 @@ ReplicaWithLatestFunctioningConfig ==
         /\ \A r_j \in 1..Len(replicas):
             replicas[r_j].epochNumber <= replicas[r].epochNumber
 
-LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
+LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config        
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:24:18 MSK 2023 by sandman
+\* Last modified Thu Feb 16 08:01:20 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

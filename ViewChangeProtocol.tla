@@ -11,6 +11,7 @@ GracefulDemote(r) == \* M_d
     /\ IsPrimary(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].opNumber = replicas[r].commitNumber
+    /\ replicas[r].batch = <<>>
     /\ replicas' = [
         replicas EXCEPT ![r].viewNumber = @ + 1,
                         ![r].status     = "view-change"
@@ -83,6 +84,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                         replica \in {
                             replicas[i]: i \in Range(replicas[r].config)
                         }: /\ replica.viewNumber = viewNumber
+                           /\ replica.epochNumber = replicas[r].epochNumber
                            /\ replica.status /= "recovering"
                     }
                 replicaWithNewLogs ==
@@ -97,7 +99,6 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                     CHOOSE replica \in doViewChangeReplicas:
                         \A replica_i \in doViewChangeReplicas:
                             replica.commitNumber >= replica_i.commitNumber
-                replicaWithNewCommitNumberIdx == CHOOSE i \in 1..NumReplicas: replicas[i] = replicaWithNewCommitNumber
               IN
                 \/ /\ replicaWithNewCommitNumber.epochNumber = replicas[r].epochNumber
                    /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r 
@@ -105,20 +106,23 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                          /\ replicas[r].viewNumber < viewNumber
                       \/ /\ replicas[r].status = "view-change"
                          /\ replicas[r].viewNumber = viewNumber
-                   /\ replicas' = [
-                       replicas EXCEPT ![r] = [
-                           status                     |-> "normal",
-                           viewNumber                 |-> viewNumber,
-                           opNumber                   |-> opNumber + 1,
-                           epochNumber                |-> replicas[r].epochNumber,
-                           commitNumber               |-> replicaWithNewCommitNumber.commitNumber,
-                           logs                       |-> Append(logs, [viewNumber |-> viewNumber]),
-                           batch                      |-> <<>>,
-                           lastNonce                  |-> replicas[r].lastNonce,
-                           oldConfig                  |-> replicas[r].oldConfig,
-                           config                     |-> replicas[r].config
-                       ]
-                      ]
+                   /\ \/ /\ replicas[r].logs /= logs
+                         /\ 
+                            LET
+                                lcs == LongestCommonSubsequence(replicas[r].logs, logs)
+                            IN replicas' = [
+                             replicas EXCEPT ![r].logs = Append(lcs, logs[Len(lcs) + 1]),
+                                             ![r].opNumber = Len(lcs) + 1,
+                                             ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber THEN @ + 1 ELSE @
+                            ]
+                      \/ /\ replicas[r].logs = logs
+                         /\ replicas' = [
+                             replicas EXCEPT ![r].status = "normal",
+                                             ![r].viewNumber = viewNumber,
+                                             ![r].opNumber = @ + 1,
+                                             ![r].logs = Append(@, [viewNumber |-> viewNumber]),
+                                             ![r].batch = <<>>
+                            ]
                      /\ UNCHANGED <<committedLogs, vcCount>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
@@ -135,20 +139,18 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
         /\
             LET
                 logIdxWithVNMetaLog == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
-            IN replicas' = [
-                replicas EXCEPT ![r] = [
-                    status                     |-> IF r \in Range(replicas[i].config) THEN "normal" ELSE "shut down",
-                    viewNumber                 |-> replicas[i].viewNumber,
-                    epochNumber                |-> replicas[i].epochNumber,
-                    opNumber                   |-> logIdxWithVNMetaLog,
-                    commitNumber               |-> Min(replicas[i].commitNumber, logIdxWithVNMetaLog),
-                    logs                       |-> SubSeq(replicas[i].logs, 1, logIdxWithVNMetaLog),
-                    batch                      |-> <<>>,
-                    lastNonce                  |-> replicas[r].lastNonce,
-                    oldConfig                  |-> replicas[r].oldConfig,
-                    config                     |-> replicas[r].config
-                ]
-            ]
+                logs == SubSeq(replicas[i].logs, 1, logIdxWithVNMetaLog)
+                lcs == LongestCommonSubsequence(replicas[r].logs, logs)
+            IN
+                /\ replicas' = [
+                             replicas EXCEPT ![r].logs = IF Len(lcs) < Len(logs) THEN Append(lcs, logs[Len(lcs) + 1]) ELSE @,
+                                             ![r].opNumber = IF Len(lcs) < Len(logs) THEN Len(lcs) + 1 ELSE @,
+                                             ![r].commitNumber = IF @ < Min(replicas[i].commitNumber, logIdxWithVNMetaLog) THEN @ + 1 ELSE @,
+                                             ![r].status = IF Len(lcs) + 1 = Len(logs) THEN (IF r \in Range(replicas[i].config) THEN "normal" ELSE "shut down") ELSE @,
+                                             ![r].viewNumber = IF Len(lcs) + 1 = Len(logs) THEN replicas[i].viewNumber ELSE @,
+                                             ![r].epochNumber = IF Len(lcs) + 1 = Len(logs) THEN replicas[i].epochNumber ELSE @,
+                                             ![r].batch = IF Len(lcs) + 1 = Len(logs) THEN <<>> ELSE @
+                   ]
         /\ UNCHANGED <<committedLogs, vcCount>>
  
 ViewChangeProtocolNext ==
@@ -163,5 +165,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:29:26 MSK 2023 by sandman
+\* Last modified Thu Feb 16 14:29:42 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman
