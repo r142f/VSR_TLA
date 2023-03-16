@@ -27,7 +27,7 @@ ENMetaLogType ==
 LogType == \* log is an entry with request and op-number assigned to it + metalogs
     CommonLogType \union VNMetaLogType \union ENMetaLogType
 
-CheckLogs(logs) ==
+CheckCommittedLogs(logs) ==
     /\ Len(logs) = Cardinality(Range(logs))
     /\ \A i, j \in 1..Len(logs):
         /\ (
@@ -40,8 +40,8 @@ CheckLogs(logs) ==
             /\ logs[i] \in ENMetaLogType
             /\ logs[j] \in ENMetaLogType
            ) => logs[i].epochNumber < logs[j].epochNumber
-        
-CommittedLogsTypeOK == CheckLogs(committedLogs) \* committedLogs type invariant
+
+CommittedLogsTypeOK == CheckCommittedLogs(committedLogs) \* committedLogs type invariant
 
 BatchType == \* requests are send from primary replica to others using batching
     {
@@ -58,13 +58,13 @@ BatchType == \* requests are send from primary replica to others using batching
     } \union {<<>>}
 
 ReplicasTypeOK == \* replicas type invariant
-    \A r \in 1..NumReplicas: TRUE
+    \A r \in 1..NumReplicas:
         /\ replicas[r].status \in {"normal", "view-change", "recovering", "transitioning", "shut down"}
         /\ replicas[r].viewNumber \in 0..QuasiMaxViewNumber
         /\ replicas[r].epochNumber \in 0..MaxEpochNumber
         /\ replicas[r].opNumber \in 0..MaxLogsSize
         /\ replicas[r].commitNumber \in 0..MaxLogsSize
-        /\ CheckLogs(replicas[r].logs)
+        /\ CheckCommittedLogs(SafeSubSeq(replicas[r].logs, 1, replicas[r].commitNumber))
         /\ replicas[r].batch \in BatchType
         /\ replicas[r].lastNonce \in 0..MaxNumFailures
         /\ replicas[r].oldConfig \in ConfigType \cup {<<>>}
@@ -82,5 +82,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:27:04 MSK 2023 by sandman
+\* Last modified Wed Mar 15 21:09:40 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman

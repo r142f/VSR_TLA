@@ -45,7 +45,7 @@ GetIdx(seq, key, value, type) ==
     
 ----
 
-QuasiMaxViewNumber == MaxViewNumber + MaxEpochNumber + MaxNumFailures
+QuasiMaxViewNumber == MaxViewNumber + MaxEpochNumber + MaxNumFailures + NumReplicas
 
 ConfigSize(r) == Len(replicas[r].config)
 
@@ -80,5 +80,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 16 08:01:20 MSK 2023 by sandman
+\* Last modified Thu Mar 16 01:11:54 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

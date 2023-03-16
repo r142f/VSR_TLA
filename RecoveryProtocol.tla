@@ -66,20 +66,20 @@ CanFailAsMemberOfCurrentConfig(r) ==
 
 
 CanFailAsMemberOfPotentialNewConfig(r) ==
-    IF
-        /\ ExistsMaxENLog
-        /\ \E maxENLog \in MaxENLogs: r \in Range(maxENLog.config)
-    THEN
-        \A maxENLog \in MaxENLogs:
-            LET 
-                config == maxENLog.config
-                f_config == LET fs == {f_i \in 0..Len(config): 2*f_i + 1 <= Len(config)}
-                     IN CHOOSE f_i \in fs: 
-                        \A f_j \in fs:
-                            f_i >= f_j
-                deadSize == Cardinality({_r \in Range(config): replicas[_r].status = "recovering" \/ replicas[_r].status = "shut down"})
-            IN deadSize < f_config
-    ELSE TRUE
+   IF
+       /\ ExistsMaxENLog
+       /\ \E maxENLog \in MaxENLogs: r \in Range(maxENLog.config)
+   THEN
+       \A maxENLog \in MaxENLogs:
+           LET 
+               config == maxENLog.config
+               f_config == LET fs == {f_i \in 0..Len(config): 2*f_i + 1 <= Len(config)}
+                    IN CHOOSE f_i \in fs: 
+                       \A f_j \in fs:
+                           f_i >= f_j
+               deadSize == Cardinality({_r \in Range(config): replicas[_r].status = "recovering" \/ replicas[_r].status = "shut down"})
+           IN deadSize < f_config
+   ELSE TRUE
     
     
 CanFailAsMemberOfNewConfig(r) ==
@@ -167,5 +167,5 @@ RecoveryProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:16:21 MSK 2023 by sandman
+\* Last modified Thu Mar 16 01:08:34 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

@@ -60,6 +60,7 @@ HandlePrepare(r) == \* See 4.1.4 of the paper.
     IN
         /\ ~ IsPrimary(r)
         /\ primary.viewNumber = replicas[r].viewNumber
+        /\ primary.epochNumber = replicas[r].epochNumber
         /\ primary.opNumber > replicas[r].opNumber
         /\ replicas' = [
                      replicas EXCEPT ![r].opNumber = @ + 1,
@@ -121,6 +122,7 @@ HandleCommit(r) == \* See 4.1.7 of the paper.
         primary == replicas[GetPrimary(r)]
     IN
         /\ primary.viewNumber = replicas[r].viewNumber
+        /\ primary.epochNumber = replicas[r].epochNumber
         /\ primary.commitNumber > replicas[r].commitNumber
         /\ replicas[r].opNumber > replicas[r].commitNumber
         /\ replicas' = [replicas EXCEPT ![r].commitNumber = @ + 1]
@@ -138,5 +140,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 16 22:02:07 MSK 2023 by sandman
+\* Last modified Thu Mar 16 17:48:40 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman
