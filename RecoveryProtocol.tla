@@ -131,12 +131,22 @@ FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
 HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
     /\ replicas[r].status = "recovering"
     /\ LET
+        latestEpochNumber ==
+            CHOOSE epochNumber \in 0..MaxEpochNumber:
+                /\ \A i \in 1..NumReplicas:
+                    /\ replicas[i].epochNumber <= epochNumber
         latestViewNumber ==
             CHOOSE viewNumber \in 0..QuasiMaxViewNumber:
-                /\ \A i \in 1..NumReplicas: \* TODO
+                /\ \A i \in {i \in 1..NumReplicas: replicas[i].epochNumber = latestEpochNumber /\ replicas[i].config /= <<>>}:
+\*                    /\ replicas[i].epochNumber = latestEpochNumber
                     /\ replicas[i].viewNumber <= viewNumber
+        replicaIdx == 
+            CHOOSE i \in 1..NumReplicas:
+                /\ replicas[i].epochNumber = latestEpochNumber
+                /\ replicas[i].viewNumber = latestViewNumber
+                /\ replicas[i].config /= <<>>
 
-        primary == replicas[(latestViewNumber % NumReplicas) + 1]         
+        primary == replicas[GetPrimary(replicaIdx)]
        IN
         /\ primary.status = "normal"
         /\ primary.viewNumber = latestViewNumber
@@ -167,5 +177,5 @@ RecoveryProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 16 01:08:34 MSK 2023 by sandman
+\* Last modified Fri Mar 17 22:50:38 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman
