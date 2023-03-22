@@ -4,121 +4,95 @@ EXTENDS Declarations
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 
-HandleNewState(r) == \* See 5.2 of the paper.
-    LET
-        primary == replicas[GetPrimary(r)]
-    IN
-        /\ ~ (primary.opNumber = replicas[r].opNumber /\ primary.viewNumber = replicas[r].viewNumber)
-        /\ primary.opNumber > replicas[r].opNumber
-        /\ primary.viewNumber >= replicas[r].viewNumber
-        /\ primary.epochNumber = replicas[r].epochNumber
-        /\ primary.status = "normal"
-        /\ replicas' = [
-            replicas EXCEPT ![r].opNumber = primary.opNumber,
-                            ![r].logs = 
-                                LET
-                                    idxOfLastCommitedLog == replicas[r].commitNumber
-                                    logs == IF primary.viewNumber = replicas[r].viewNumber THEN @ ELSE SafeSubSeq(@, 1, idxOfLastCommitedLog)
-                                    idxOfPrimaryLog == primary.opNumber
-                                    logsToAdd == SafeSubSeq(primary.logs, Len(logs) + 1, idxOfPrimaryLog)
-                                IN logs \o logsToAdd,
-                            ![r].commitNumber = primary.commitNumber,
-\*                            ![r].epochNumber = primary.epochNumber,
-\*                            ![r].config = primary.config,
-\*                            ![r].oldConfig = primary.oldConfig,
-                            ![r].viewNumber = primary.viewNumber
-                            
-           ]
-    /\ UNCHANGED <<committedLogs>>
-
 Download(from, to, logIdx) == 
     LET
         logs == SafeSubSeq(replicas[from].logs, 1, logIdx)
         lcs == LongestCommonSubsequence(replicas[to].logs, logs)
         nextLogIdx == Len(lcs) + 1
     IN 
-        \/ /\ lcs /= logs
-           /\ \/ /\ Len(lcs) = replicas[to].commitNumber
-                 /\ replicas' = 
-                       [
-                          replicas EXCEPT ![to].opNumber = nextLogIdx,
-                                          ![to].commitNumber = IF @ < replicas[from].commitNumber /\ @ < nextLogIdx THEN @ + 1 ELSE @,
-                                          ![to].logs = Append(lcs, logs[nextLogIdx]),
-                                          ![to].viewNumber = 
-                                              IF 
-                                                  /\ logs[nextLogIdx] \in VNMetaLogType
-                                                  /\ nextLogIdx <= replicas[from].commitNumber
-                                                  /\ logs[nextLogIdx].viewNumber > @
-                                              THEN logs[nextLogIdx].viewNumber
-                                              ELSE @,
-                                          ![to].epochNumber = 
-                                              IF 
-                                                  /\ logs[nextLogIdx] \in ENMetaLogType
-                                                  /\ nextLogIdx <= replicas[from].commitNumber
-                                              THEN logs[nextLogIdx].epochNumber
-                                              ELSE @,
-                                          ![to].oldConfig = 
-                                              IF 
-                                                  /\ logs[nextLogIdx] \in ENMetaLogType
-                                                  /\ nextLogIdx <= replicas[from].commitNumber
-                                              THEN replicas[to].config
-                                              ELSE @,
-                                          ![to].config = 
-                                              IF 
-                                                  /\ logs[nextLogIdx] \in ENMetaLogType
-                                                  /\ nextLogIdx <= replicas[from].commitNumber
-                                              THEN logs[nextLogIdx].config
-                                              ELSE @,
-                                          ![to].status = 
-                                              IF 
-                                                  /\ logs[nextLogIdx] \in ENMetaLogType
-                                                  /\ nextLogIdx <= replicas[from].commitNumber
-                                                  /\ ~ to \in Range(logs[nextLogIdx].config)
-                                              THEN "shut down"
-                                              ELSE @
-                       ]
-               \/ /\ Len(lcs) > replicas[to].commitNumber
-                  /\ replicas[from].commitNumber > replicas[to].commitNumber 
-                  /\ replicas' = 
-                       [
-                          replicas EXCEPT ![to].commitNumber = @ + 1,
-                                          ![to].viewNumber = 
-                                              IF
-                                                 /\ replicas[to].logs[replicas[to].commitNumber + 1] \in VNMetaLogType
-                                                 /\ replicas[to].logs[replicas[to].commitNumber + 1].viewNumber > @
-                                              THEN replicas[to].logs[replicas[to].commitNumber + 1].viewNumber
-                                              ELSE @,
-                                          ![to].epochNumber = 
-                                              IF replicas[to].logs[replicas[to].commitNumber + 1] \in ENMetaLogType
-                                              THEN replicas[to].logs[replicas[to].commitNumber + 1].epochNumber
-                                              ELSE @,
-                                          ![to].oldConfig = 
-                                              IF replicas[to].logs[replicas[to].commitNumber + 1] \in ENMetaLogType
-                                              THEN replicas[to].config
-                                              ELSE @,
-                                          ![to].config = 
-                                              IF replicas[to].logs[replicas[to].commitNumber + 1] \in ENMetaLogType
-                                              THEN replicas[to].logs[replicas[to].commitNumber + 1].config
-                                              ELSE @,
-                                          ![to].status = 
-                                              IF 
-                                                  /\ replicas[to].logs[replicas[to].commitNumber + 1] \in ENMetaLogType
-                                                  /\ ~ to \in Range(replicas[to].logs[replicas[to].commitNumber + 1].config)
-                                              THEN "shut down"
-                                              ELSE @
-                       ]
-        \/ /\ lcs = logs
-           /\ replicas[to].commitNumber < replicas[from].commitNumber
-           /\ replicas[to].commitNumber < Len(logs)
-           /\ replicas' = 
-                 [
-                    replicas EXCEPT ![to].commitNumber = @ + 1
-                 ]
-        
-            
-        
+        /\ \/ /\ replicas[to].commitNumber < replicas[from].commitNumber
+              /\ replicas[to].commitNumber < Len(logs)
+           \/ lcs /= logs
+        /\
+             LET
+                 needToCommit == 
+                     /\ replicas[to].commitNumber < replicas[from].commitNumber 
+                     /\ \/ /\ lcs /= logs
+                           /\ replicas[to].commitNumber < nextLogIdx
+                        \/ /\ lcs = logs
+                           /\ replicas[to].commitNumber < Len(logs)
+                 logToCommitIdx == replicas[to].commitNumber + 1
+                 logToCommit ==
+                     IF needToCommit
+                     THEN logs[logToCommitIdx]
+                     ELSE 0
+                 needToCommitVNMetaLog == 
+                     /\ needToCommit
+                     /\ logToCommit \in VNMetaLogType
+                 needToCommitENMetaLog == 
+                     /\ needToCommit
+                     /\ logToCommit \in ENMetaLogType
+                 needToAddLog == 
+                     /\ lcs /= logs
+                     /\ replicas[to].commitNumber >= Min(replicas[from].commitNumber, Len(lcs)) \* first we commit, then we add logs *\
+                 needToAddVNMetaLog ==
+                    /\ needToAddLog
+                    /\ logs[nextLogIdx] \in VNMetaLogType
+             IN replicas' = 
+                [
+                   replicas EXCEPT ![to].opNumber     =
+                                      IF needToAddLog
+                                      THEN nextLogIdx
+                                      ELSE @,
+
+                                   ![to].commitNumber =
+                                      IF needToCommit
+                                      THEN @ + 1
+                                      ELSE @,
+
+                                   ![to].logs         =
+                                      IF needToAddLog
+                                      THEN Append(lcs, logs[nextLogIdx])
+                                      ELSE @,
+
+                                   ![to].viewNumber   = 
+                                       IF needToCommitVNMetaLog
+                                       THEN Max(logToCommit.viewNumber, @)
+                                       ELSE
+                                            IF needToAddVNMetaLog
+                                            THEN Max(logs[nextLogIdx].viewNumber, @)
+                                            ELSE @,
+
+                                   ![to].epochNumber  = 
+                                       IF needToCommitENMetaLog
+                                       THEN logToCommit.epochNumber
+                                       ELSE @,
+
+                                   ![to].oldConfig    = 
+                                       IF needToCommitENMetaLog
+                                       THEN replicas[to].config
+                                       ELSE @,
+
+                                   ![to].config       = 
+                                       IF needToCommitENMetaLog
+                                       THEN logToCommit.config
+                                       ELSE @,
+
+                                   ![to].status       = 
+                                       IF 
+                                           /\ needToCommitENMetaLog
+                                           /\ ~ to \in Range(logToCommit.config)
+                                       THEN "shut down"
+                                       ELSE 
+                                         IF 
+                                            /\ @ = "view-change"      \* for handle start view change *\
+                                            /\ needToAddLog
+                                            /\ nextLogIdx = Len(logs)
+                                         THEN "normal"
+                                         ELSE @
+                ]
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 15 18:21:51 MSK 2023 by sandman
+\* Last modified Wed Mar 22 15:43:56 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

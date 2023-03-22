@@ -64,6 +64,10 @@ GetPrimary(r) ==
 
 IsPrimary(r) == GetPrimary(r) = r   
 
+InLatestEpoch(r) ==
+    ~ \E i \in 1..NumReplicas:
+        replicas[i].epochNumber > replicas[r].epochNumber
+
 ExistsFunctioningLatestConfig ==
     \E r \in 1..Len(replicas):
         /\ replicas[r].status /= "shut down"
@@ -80,5 +84,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 16 01:11:54 MSK 2023 by sandman
+\* Last modified Tue Mar 21 16:13:32 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

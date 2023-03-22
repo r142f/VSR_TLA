@@ -37,8 +37,8 @@ TryBroadcastPrepare(r) ==
     /\ replicas[r].batch /= <<>>                       \* batch mustn't be empty
     /\ replicas' = [                                   \* update opNumber & logs, empty batch
           replicas EXCEPT ![r].opNumber = @ + Len(replicas[r].batch),
-                          ![r].logs = @ \o replicas[r].batch,
-                          ![r].batch = <<>>
+                          ![r].logs     = @ \o replicas[r].batch,
+                          ![r].batch    = <<>>
        ]
 
 (***************************************************************************)
@@ -52,7 +52,6 @@ TryBroadcastPrepare(r) ==
 HandleRequest(r) == 
     /\ \/ TryUpdateBatch(r)
        \/ TryBroadcastPrepare(r)
-    /\ UNCHANGED <<committedLogs>>
          
 HandlePrepare(r) == \* See 4.1.4 of the paper.
     LET 
@@ -63,59 +62,39 @@ HandlePrepare(r) == \* See 4.1.4 of the paper.
         /\ primary.epochNumber = replicas[r].epochNumber
         /\ primary.opNumber > replicas[r].opNumber
         /\ replicas' = [
-                     replicas EXCEPT ![r].opNumber = @ + 1,
-                                     ![r].logs = Append(@, primary.logs[replicas[r].opNumber + 1])
+                     replicas EXCEPT ![r].commitNumber = Min(replicas[r].opNumber + 1, primary.commitNumber),
+                                     ![r].opNumber     = @ + 1,
+                                     ![r].logs         = Append(@, primary.logs[replicas[r].opNumber + 1])
                  ]
-        /\ UNCHANGED <<committedLogs>> 
-
-CheckEpochEN(r) == 
-    /\ Len(replicas[r].logs) > 0
-    /\ \E i \in 1..replicas[r].opNumber:
-        /\ replicas[r].logs[i] \in ENMetaLogType
-        /\ replicas[r].logs[i].epochNumber > replicas[r].epochNumber
 
 HandlePrepareOk(r) == \* See 4.1.5 of the paper.
     /\ IsPrimary(r)
+    /\ InLatestEpoch(r)
     /\ ~ PreparingReconfiguration(r)
-    /\ Len(replicas[r].logs) > 0
-    /\ \/ /\ ~ \E l \in 1..Len(replicas[r].logs):
-              /\ replicas[r].logs[l] \in ENMetaLogType
-              /\ replicas[r].logs[l].epochNumber > replicas[r].epochNumber
-          /\ Cardinality({
-                  i \in Range(replicas[r].config): 
-                      /\ replicas[i].viewNumber = replicas[r].viewNumber
-                      /\ replicas[i].opNumber >= replicas[r].opNumber
-                      /\ replicas[i].status = "normal"
-              }) >= majority(r) 
-          /\ replicas[r].commitNumber /= replicas[r].opNumber
-          /\ replicas' = [replicas EXCEPT ![r].commitNumber = replicas[r].opNumber]
-          /\ committedLogs' =
-                 committedLogs 
-                     \o
-                 SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
-       \/ /\ \E l \in 1..Len(replicas[r].logs):
-              /\ replicas[r].logs[l] \in ENMetaLogType
-              /\ replicas[r].logs[l].epochNumber > replicas[r].epochNumber
-              /\ Cardinality({
-                      i \in Range(replicas[r].config): 
-                          /\ replicas[i].viewNumber = replicas[r].viewNumber
-                          /\ replicas[i].opNumber >= l
-                          /\ replicas[i].status = "normal"
-                  }) >= majority(r) 
-              /\ replicas[r].commitNumber /= l
-              /\ replicas' = 
+    /\ replicas[r].opNumber > replicas[r].commitNumber
+    /\
+        LET
+            l   == replicas[r].commitNumber + 1
+            log == replicas[r].logs[l]
+        IN
+            /\ Cardinality({
+                   i \in Range(replicas[r].config):
+                       /\ replicas[i].viewNumber = replicas[r].viewNumber
+                       /\ replicas[i].opNumber >= l
+                       /\ replicas[i].status = "normal"
+               }) >= majority(r)
+            /\ \/ /\ log \in ENMetaLogType
+                  /\ replicas' = 
                     [
                         replicas EXCEPT ![r].commitNumber = l,
-                                        ![r].epochNumber = replicas[r].logs[l].epochNumber,
-                                        ![r].viewNumber = IF r \in Range(replicas[r].logs[l].config) THEN @ + 1 ELSE @,
-                                        ![r].status = IF r \in Range(replicas[r].logs[l].config) THEN "view-change" ELSE "shut down",
-                                        ![r].oldConfig = replicas[r].config,
-                                        ![r].config = replicas[r].logs[l].config
+                                        ![r].epochNumber  = log.epochNumber,
+                                        ![r].viewNumber   = IF r \in Range(log.config) THEN @ + 1 ELSE @,
+                                        ![r].status       = IF r \in Range(log.config) THEN "view-change" ELSE "shut down",
+                                        ![r].oldConfig    = replicas[r].config,
+                                        ![r].config       = log.config
                     ]
-              /\ committedLogs' =
-                     committedLogs 
-                         \o
-                     SubSeq(replicas'[r].logs, Len(committedLogs) + 1, replicas'[r].commitNumber)
+               \/ /\ ~ log \in ENMetaLogType
+                  /\ replicas' = [replicas EXCEPT ![r].commitNumber = l]
     
 HandleCommit(r) == \* See 4.1.7 of the paper.
     LET 
@@ -126,19 +105,17 @@ HandleCommit(r) == \* See 4.1.7 of the paper.
         /\ primary.commitNumber > replicas[r].commitNumber
         /\ replicas[r].opNumber > replicas[r].commitNumber
         /\ replicas' = [replicas EXCEPT ![r].commitNumber = @ + 1]
-        /\ UNCHANGED <<committedLogs>>        
     
 NormalProtocolNext == \* M of the scheme
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status = "normal"
        /\ \/ HandleRequest(r)
           \/ HandlePrepare(r)
-\*          \/ HandleNewState(r)
           \/ HandlePrepareOk(r)
           \/ HandleCommit(r)
     /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 16 17:48:40 MSK 2023 by sandman
+\* Last modified Wed Mar 22 14:20:35 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

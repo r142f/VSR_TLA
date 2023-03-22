@@ -10,12 +10,11 @@ CONSTANT
     MaxConfigSize   \* max config size
         
 VARIABLE 
-    replicas, \* replicas[r] is the state of replica r
+    replicas,  \* replicas[r] is the state of replica r
     nonce,     \* number of failures at the moment (needed for Recovery protocol)
-    vcCount,   \* number of viewchanges called directly
-    committedLogs \* sequence of committed logs, used for checking consistency
+    vcCount    \* number of viewchanges called directly
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 14 13:16:01 MSK 2023 by sandman
+\* Last modified Mon Mar 20 02:56:04 MSK 2023 by sandman
 \* Created Thu Dec 01 23:43:40 MSK 2022 by sandman

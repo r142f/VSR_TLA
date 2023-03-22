@@ -1,17 +1,22 @@
 ----------------------- MODULE ViewstampedReplicationV3 -----------------------
-EXTENDS Declarations
+EXTENDS Declarations, Naturals, TLC
 
 INSTANCE Utils
 INSTANCE Types
     
-vars == <<replicas, nonce, vcCount, committedLogs>>
+vars == <<replicas, nonce, vcCount>>
 
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
-    \A i \in 1..Len(replicas):
-        Len(LongestCommonSubsequence(
-            SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
-            committedLogs
-        )) = Min(replicas[i].commitNumber, Len(committedLogs))
+    \A i \in 1..NumReplicas:
+        \A j \in (i + 1)..NumReplicas:
+          LET
+            a == SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber)
+            b == SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
+          IN 
+          /\ Len(LongestCommonSubsequence(
+                SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
+                SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
+             )) = Min(replicas[i].commitNumber, replicas[j].commitNumber)
         
 ----
     
@@ -28,7 +33,7 @@ ReplicasInit == \* see fig. 2 of the paper for explanation
             batch                      |-> <<>>,
             lastNonce                  |-> 0,
             oldConfig                  |-> <<>>,
-            config                     |-> config\*SetToSeq(1..MaxConfigSize) \* TODO
+            config                     |-> config
         ]
     ]
     
@@ -36,13 +41,10 @@ NonceInit == nonce = 0
 
 VCCountInit == vcCount = 0
 
-CommittedLogsInit == committedLogs = <<>>
-
 Init == 
     /\ ReplicasInit
     /\ NonceInit
     /\ VCCountInit
-    /\ CommittedLogsInit
     
 ----
 
@@ -90,15 +92,14 @@ Spec ==
 
 RequestsCommitted == \* "eventually all client requests are committed" temporal property
     <>(
-        /\ \A request \in Requests:
-            \E i \in 1..Len(committedLogs):
-                /\ committedLogs[i] \in CommonLogType
-                /\ committedLogs[i].request = request
-\*        /\ \A r \in Range(ConfigReplicas):
-\*            replicas[r].logs = committedLogs
+            \E r \in 1..NumReplicas:
+                \A request \in Requests:
+                    \E i \in 1..replicas[r].commitNumber:
+                        /\ replicas[r].logs[i] \in CommonLogType
+                        /\ replicas[r].logs[i].request = request
       )
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Feb 15 14:52:40 MSK 2023 by sandman
+\* Last modified Mon Mar 20 18:48:35 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

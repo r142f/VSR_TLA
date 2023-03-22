@@ -3,21 +3,7 @@ EXTENDS Declarations
     
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
-LOCAL INSTANCE NormalProtocol
-LOCAL INSTANCE ReconfigurationProtocol
-
-GracefulDemote(r) == \* M_d
-    /\ vcCount < MaxViewNumber
-    /\ IsPrimary(r)
-    /\ replicas[r].status = "normal"
-    /\ replicas[r].opNumber = replicas[r].commitNumber
-    /\ replicas[r].batch = <<>>
-    /\ replicas' = [
-        replicas EXCEPT ![r].viewNumber = @ + 1,
-                        ![r].status     = "view-change"
-       ]
-    /\ vcCount' = vcCount + 1
-    /\ UNCHANGED <<committedLogs>>
+LOCAL INSTANCE StateTransferProtocol
 
 StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     /\ replicas[r].status /= "shut down"
@@ -31,7 +17,6 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
         replicas EXCEPT ![r].viewNumber = @ + 1,
                         ![r].status     = "view-change"
        ]
-    /\ UNCHANGED <<committedLogs>>
     
 HandleStartViewChange(r) ==
     \* See 4.2.1's end of the paper. 
@@ -43,7 +28,7 @@ HandleStartViewChange(r) ==
                         replicas EXCEPT ![r].viewNumber = replicas[i].viewNumber,
                                         ![r].status     = "view-change"
                        ]
-                   /\ UNCHANGED <<committedLogs, vcCount>>
+                   /\ UNCHANGED <<vcCount>>
 
     \* See 4.2.2 of the paper. Send "DoViewChange" msg was here
 
@@ -65,12 +50,11 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                                /\ replicas[i].epochNumber = replicas[r].epochNumber
                                /\ replicas[i].status /= "recovering"
                           }) >= majority(r)
+                    /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
                     /\ \/ /\ replicas[r].status = "normal"
                           /\ replicas[r].viewNumber + 1 = viewNumber
-                          /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
                        \/ /\ replicas[r].status = "view-change"
                           /\ replicas[r].viewNumber = viewNumber
-                          /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
             }
         IN
            /\ viewNumbers /= {}
@@ -120,10 +104,11 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                              replicas EXCEPT ![r].status = "normal",
                                              ![r].viewNumber = viewNumber,
                                              ![r].opNumber = @ + 1,
+                                             ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber THEN @ + 1 ELSE @,
                                              ![r].logs = Append(@, [viewNumber |-> viewNumber]),
                                              ![r].batch = <<>>
                             ]
-                     /\ UNCHANGED <<committedLogs, vcCount>>
+                     /\ UNCHANGED <<vcCount>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
     /\ \E i \in Range(replicas[r].config):
@@ -138,20 +123,14 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
               /\ replicas[r].viewNumber < replicas[i].viewNumber 
         /\
             LET
-                logIdxWithVNMetaLog == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
-                logs == SubSeq(replicas[i].logs, 1, logIdxWithVNMetaLog)
+                vnMetaLogIdx == GetIdx(replicas[i].logs, "viewNumber", replicas[i].viewNumber, VNMetaLogType)
+                logs == SubSeq(replicas[i].logs, 1, vnMetaLogIdx)
                 lcs == LongestCommonSubsequence(replicas[r].logs, logs)
             IN
-                /\ replicas' = [
-                             replicas EXCEPT ![r].logs = IF Len(lcs) < Len(logs) THEN Append(lcs, logs[Len(lcs) + 1]) ELSE @,
-                                             ![r].opNumber = IF Len(lcs) < Len(logs) THEN Len(lcs) + 1 ELSE @,
-                                             ![r].commitNumber = IF @ < Min(replicas[i].commitNumber, logIdxWithVNMetaLog) THEN @ + 1 ELSE @,
-                                             ![r].status = IF Len(lcs) + 1 = Len(logs) THEN (IF r \in Range(replicas[i].config) THEN "normal" ELSE "shut down") ELSE @,
-                                             ![r].viewNumber = IF Len(lcs) + 1 = Len(logs) THEN replicas[i].viewNumber ELSE @,
-                                             ![r].epochNumber = IF Len(lcs) + 1 = Len(logs) THEN replicas[i].epochNumber ELSE @,
-                                             ![r].batch = IF Len(lcs) + 1 = Len(logs) THEN <<>> ELSE @
-                   ]
-        /\ UNCHANGED <<committedLogs, vcCount>>
+                /\ \/ lcs /= logs
+                   \/ replicas[r].commitNumber < replicas[i].commitNumber
+                /\ Download(i, r, vnMetaLogIdx)
+        /\ UNCHANGED <<vcCount>>
  
 ViewChangeProtocolNext ==
     /\ \E r \in 1..Len(replicas):
@@ -160,10 +139,9 @@ ViewChangeProtocolNext ==
           \/ HandleStartViewChange(r)
           \/ HandleDoViewChange(r)
           \/ HandleStartView(r)
-          \/ GracefulDemote(r)
     /\ UNCHANGED <<nonce>>
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 16 14:29:42 MSK 2023 by sandman
+\* Last modified Wed Mar 22 17:56:28 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

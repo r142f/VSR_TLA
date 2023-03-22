@@ -154,7 +154,7 @@ HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
         /\ replicas' = 
              [
                  replicas EXCEPT ![r] = [
-                     status                     |-> "normal",
+                     status                     |-> IF r \in Range(primary.config) THEN "normal" ELSE "shut down",
                      viewNumber                 |-> primary.viewNumber,
                      epochNumber                |-> primary.epochNumber,
                      opNumber                   |-> primary.opNumber,
@@ -173,9 +173,9 @@ RecoveryProtocolNext ==
        /\ replicas[r].status /= "shut down"
        /\ \/ FailAndSendRecovery(r)
           \/ HandleRecoveryResponse(r)
-    /\ UNCHANGED <<committedLogs, vcCount>>
+    /\ UNCHANGED << vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 17 22:50:38 MSK 2023 by sandman
+\* Last modified Wed Mar 22 18:25:48 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

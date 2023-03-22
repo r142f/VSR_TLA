@@ -41,8 +41,6 @@ CheckCommittedLogs(logs) ==
             /\ logs[j] \in ENMetaLogType
            ) => logs[i].epochNumber < logs[j].epochNumber
 
-CommittedLogsTypeOK == CheckCommittedLogs(committedLogs) \* committedLogs type invariant
-
 BatchType == \* requests are send from primary replica to others using batching
     {
         SubSeq(
@@ -59,7 +57,7 @@ BatchType == \* requests are send from primary replica to others using batching
 
 ReplicasTypeOK == \* replicas type invariant
     \A r \in 1..NumReplicas:
-        /\ replicas[r].status \in {"normal", "view-change", "recovering", "transitioning", "shut down"}
+        /\ replicas[r].status \in {"normal", "view-change", "recovering", "shut down"}
         /\ replicas[r].viewNumber \in 0..QuasiMaxViewNumber
         /\ replicas[r].epochNumber \in 0..MaxEpochNumber
         /\ replicas[r].opNumber \in 0..MaxLogsSize
@@ -78,9 +76,8 @@ TypeOK == \* type invariant
     /\ ReplicasTypeOK
     /\ NonceTypeOK
     /\ VCCountTypeOK
-    /\ CommittedLogsTypeOK
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 15 21:09:40 MSK 2023 by sandman
+\* Last modified Mon Mar 20 02:57:12 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman
