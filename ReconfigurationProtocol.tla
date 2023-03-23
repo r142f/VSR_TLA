@@ -118,7 +118,7 @@ ProcessInTheOldGroup(r) ==
                         /\ replicas[i].logs[l].epochNumber = replicas[i].epochNumber
                 enMetaLog == replicas[i].logs[enMetaLogIdx]
             IN
-            /\ r \in Range(replicas[i].oldConfig)
+\*            /\ r \in Range(replicas[i].oldConfig)
             /\ ~ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
                   /\ Download(i, r, enMetaLogIdx)
@@ -135,7 +135,7 @@ ProcessInTheOldGroup(r) ==
                                              ![r].viewNumber   =
                                                 IF replicas[i].status = "shut down"
                                                 THEN replicas[i].viewNumber
-                                                ELSE replicas[i].viewNumber - 1,
+                                                ELSE Max(0, replicas[i].viewNumber - 1),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
@@ -160,5 +160,5 @@ ReconfigurationProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 22 19:25:17 MSK 2023 by sandman
+\* Last modified Thu Mar 23 20:23:30 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

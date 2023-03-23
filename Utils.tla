@@ -84,5 +84,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 21 16:13:32 MSK 2023 by sandman
+\* Last modified Thu Mar 23 20:33:58 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

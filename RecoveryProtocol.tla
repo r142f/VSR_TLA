@@ -137,14 +137,15 @@ HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
                     /\ replicas[i].epochNumber <= epochNumber
         latestViewNumber ==
             CHOOSE viewNumber \in 0..QuasiMaxViewNumber:
-                /\ \A i \in {i \in 1..NumReplicas: replicas[i].epochNumber = latestEpochNumber /\ replicas[i].config /= <<>>}:
-\*                    /\ replicas[i].epochNumber = latestEpochNumber
-                    /\ replicas[i].viewNumber <= viewNumber
+                /\ \A i \in {i \in 1..NumReplicas:
+                    /\ replicas[i].epochNumber = latestEpochNumber
+                    /\ replicas[i].status /= "recovering"}:
+                        /\ replicas[i].viewNumber <= viewNumber
         replicaIdx == 
             CHOOSE i \in 1..NumReplicas:
                 /\ replicas[i].epochNumber = latestEpochNumber
                 /\ replicas[i].viewNumber = latestViewNumber
-                /\ replicas[i].config /= <<>>
+                /\ replicas[i].status /= "recovering"
 
         primary == replicas[GetPrimary(replicaIdx)]
        IN
@@ -177,5 +178,5 @@ RecoveryProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 22 18:25:48 MSK 2023 by sandman
+\* Last modified Thu Mar 23 01:15:15 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman
