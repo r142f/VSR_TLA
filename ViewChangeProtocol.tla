@@ -49,7 +49,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                                /\ replicas[i].viewNumber = viewNumber
                                /\ replicas[i].epochNumber = replicas[r].epochNumber
                                /\ replicas[i].status /= "recovering"
-                          }) >= majority(r)
+                       }) >= majority(r)
                     /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r
                     /\ \/ /\ replicas[r].status = "normal"
                           /\ replicas[r].viewNumber + 1 = viewNumber
@@ -95,18 +95,22 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                             LET
                                 lcs == LongestCommonSubsequence(replicas[r].logs, logs)
                             IN replicas' = [
-                             replicas EXCEPT ![r].logs = Append(lcs, logs[Len(lcs) + 1]),
-                                             ![r].opNumber = Len(lcs) + 1,
-                                             ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber THEN @ + 1 ELSE @
+                                replicas EXCEPT ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
+                                                ![r].opNumber     = Len(lcs) + 1,
+                                                ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber
+                                                                    THEN @ + 1
+                                                                    ELSE @
                             ]
                       \/ /\ replicas[r].logs = logs
                          /\ replicas' = [
-                             replicas EXCEPT ![r].status = "normal",
-                                             ![r].viewNumber = viewNumber,
-                                             ![r].opNumber = @ + 1,
-                                             ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber THEN @ + 1 ELSE @,
-                                             ![r].logs = Append(@, [viewNumber |-> viewNumber]),
-                                             ![r].batch = <<>>
+                                replicas EXCEPT ![r].status       = "normal",
+                                                ![r].viewNumber   = viewNumber,
+                                                ![r].opNumber     = @ + 1,
+                                                ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber 
+                                                                    THEN @ + 1
+                                                                    ELSE @,
+                                                ![r].logs         = Append(@, [viewNumber |-> viewNumber]),
+                                                ![r].batch        = <<>>
                             ]
                      /\ UNCHANGED <<vcCount>>
 

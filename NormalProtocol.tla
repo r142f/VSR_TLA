@@ -50,8 +50,8 @@ TryBroadcastPrepare(r) ==
 (* See also 4.1.3 of the paper.                                            *)
 (***************************************************************************)
 HandleRequest(r) == 
-    /\ \/ TryUpdateBatch(r)
-       \/ TryBroadcastPrepare(r)
+    \/ TryUpdateBatch(r)
+    \/ TryBroadcastPrepare(r)
          
 HandlePrepare(r) == \* See 4.1.4 of the paper.
     LET 
@@ -89,8 +89,12 @@ HandlePrepareOk(r) == \* See 4.1.5 of the paper.
                     [
                         replicas EXCEPT ![r].commitNumber = l,
                                         ![r].epochNumber  = log.epochNumber,
-                                        ![r].viewNumber   = IF r \in Range(log.config) THEN @ + 1 ELSE @,
-                                        ![r].status       = IF r \in Range(log.config) THEN "view-change" ELSE "shut down",
+                                        ![r].viewNumber   = IF r \in Range(log.config)
+                                                            THEN @ + 1
+                                                            ELSE @,
+                                        ![r].status       = IF r \in Range(log.config)
+                                                            THEN "view-change"
+                                                            ELSE "shut down",
                                         ![r].oldConfig    = replicas[r].config,
                                         ![r].config       = log.config
                     ]

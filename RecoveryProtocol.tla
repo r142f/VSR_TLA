@@ -9,7 +9,7 @@ ExistsMaxENLog ==
     \E r \in 1..Len(replicas):
         /\ Len(replicas[r].logs) > 0
         /\ \E l \in 1..Len(replicas[r].logs):
-            /\ replicas[r].logs[l] \in ENMetaLogType
+            replicas[r].logs[l] \in ENMetaLogType
             
 MaxENLogs ==
     LET

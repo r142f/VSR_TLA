@@ -5,11 +5,10 @@ LOCAL INSTANCE Utils
 
 ConfigType ==
     {
-        SetToSeq(config): config \in
-            {
-                config \in SUBSET (1..NumReplicas) \ {{}}:
-                    Cardinality(config) <= MaxConfigSize
-            }
+        SetToSeq(config): config \in {
+            config \in SUBSET (1..NumReplicas) \ {{}}:
+                Cardinality(config) <= MaxConfigSize
+        }
     }
 
 MaxLogsSize == Cardinality(Requests) + QuasiMaxViewNumber + MaxEpochNumber
@@ -25,7 +24,9 @@ ENMetaLogType ==
     ]
 
 LogType == \* log is an entry with request and op-number assigned to it + metalogs
-    CommonLogType \union VNMetaLogType \union ENMetaLogType
+    CommonLogType \union
+    VNMetaLogType \union
+    ENMetaLogType
 
 CheckCommittedLogs(logs) ==
     /\ Len(logs) = Cardinality(Range(logs))

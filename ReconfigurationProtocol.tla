@@ -55,11 +55,12 @@ HandleReconfigurationPrepareOk(r) ==
                [
                    replicas EXCEPT ![r].commitNumber = replicas[r].opNumber,
                                    ![r].epochNumber  = @ + 1,
-                                   ![r].viewNumber   = IF r \in Range(enMetaLog.config) THEN @ + 1 ELSE @,
-                                   ![r].status       =
-                                    IF r \in Range(enMetaLog.config)
-                                    THEN "view-change"
-                                    ELSE "shut down",
+                                   ![r].viewNumber   = IF r \in Range(enMetaLog.config)
+                                                       THEN @ + 1
+                                                       ELSE @,
+                                   ![r].status       = IF r \in Range(enMetaLog.config)
+                                                       THEN "view-change"
+                                                       ELSE "shut down",
                                    ![r].oldConfig    = replicas[r].config,
                                    ![r].config       = enMetaLog.config
                ]
@@ -88,23 +89,23 @@ ProcessInTheNewGroup(r) ==
                      /\ replicas' = 
                          [
                              replicas EXCEPT ![r].status       = "view-change",
-                                             ![r].viewNumber   = 
-                                                Max(
-                                                    replicas[r].viewNumber + 1,
-                                                    IF replicas[i].status = "shut down"
-                                                    THEN replicas[i].viewNumber + 1
-                                                    ELSE replicas[i].viewNumber
-                                                ),
+                                             ![r].viewNumber   = Max(
+                                                                    replicas[r].viewNumber + 1,
+                                                                    IF replicas[i].status = "shut down"
+                                                                    THEN replicas[i].viewNumber + 1
+                                                                    ELSE replicas[i].viewNumber
+                                                                 ),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
-                                             ![r].opNumber     = IF lcs = logs THEN Len(lcs) ELSE nextLogIdx,
+                                             ![r].opNumber     = IF lcs = logs
+                                                                 THEN Len(lcs)
+                                                                 ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
-                                             ![r].logs         =
-                                                IF lcs = logs
-                                                THEN lcs
-                                                ELSE Append(lcs, logs[nextLogIdx])
+                                             ![r].logs         = IF lcs = logs
+                                                                 THEN lcs
+                                                                 ELSE Append(lcs, logs[nextLogIdx])
                          ]           
            
 ProcessInTheOldGroup(r) ==
@@ -137,12 +138,13 @@ ProcessInTheOldGroup(r) ==
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
-                                             ![r].opNumber     = IF lcs = logs THEN Len(lcs) ELSE nextLogIdx,
+                                             ![r].opNumber     = IF lcs = logs
+                                                                 THEN Len(lcs)
+                                                                 ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
-                                             ![r].logs         =
-                                                IF lcs = logs
-                                                THEN lcs
-                                                ELSE Append(lcs, logs[nextLogIdx])
+                                             ![r].logs         = IF lcs = logs
+                                                                 THEN lcs
+                                                                 ELSE Append(lcs, logs[nextLogIdx])
                          ]  
 
 ReconfigurationProtocolNext == \* M of the scheme
@@ -152,7 +154,6 @@ ReconfigurationProtocolNext == \* M of the scheme
           \/ HandleReconfigurationPrepareOk(r)
           \/ ProcessInTheNewGroup(r)
           \/ ProcessInTheOldGroup(r)
-       
     /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================

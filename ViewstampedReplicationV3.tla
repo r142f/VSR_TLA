@@ -9,14 +9,14 @@ vars == <<replicas, nonce, vcCount>>
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
     \A i \in 1..NumReplicas:
         \A j \in (i + 1)..NumReplicas:
-          LET
-            a == SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber)
-            b == SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
-          IN 
-          /\ Len(LongestCommonSubsequence(
-                SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
-                SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
-             )) = Min(replicas[i].commitNumber, replicas[j].commitNumber)
+            LET
+                a == SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber)
+                b == SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
+            IN 
+                Len(LongestCommonSubsequence(
+                   SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
+                   SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
+                )) = Min(replicas[i].commitNumber, replicas[j].commitNumber)
         
 ----
     
@@ -24,7 +24,9 @@ ReplicasInit == \* see fig. 2 of the paper for explanation
   \E config \in ConfigType:
     replicas = [
         x \in 1..NumReplicas |-> [
-            status                     |-> IF x \in Range(config) THEN "normal" ELSE "shut down",
+            status                     |-> IF x \in Range(config)
+                                           THEN "normal"
+                                           ELSE "shut down",
             viewNumber                 |-> 0,
             epochNumber                |-> 0,
             opNumber                   |-> 0,
@@ -99,11 +101,11 @@ Spec ==
 
 RequestsCommitted == \* "eventually all client requests are committed" temporal property
     <>(
-            \E r \in 1..NumReplicas:
-                \A request \in Requests:
-                    \E i \in 1..replicas[r].commitNumber:
-                        /\ replicas[r].logs[i] \in CommonLogType
-                        /\ replicas[r].logs[i].request = request
+        \E r \in 1..NumReplicas:
+            \A request \in Requests:
+                \E i \in 1..replicas[r].commitNumber:
+                    /\ replicas[r].logs[i] \in CommonLogType
+                    /\ replicas[r].logs[i].request = request
       )
 
 =============================================================================
