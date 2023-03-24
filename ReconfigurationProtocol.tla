@@ -67,8 +67,6 @@ HandleReconfigurationPrepareOk(r) ==
 ProcessInTheNewGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*        /\ \/ replicas[i].viewNumber >= replicas[r].viewNumber \* *\
-\*           \/ replicas[i].status = "shut down"                 \* *\
         /\ 
             LET
                 enMetaLogIdx ==
@@ -79,9 +77,6 @@ ProcessInTheNewGroup(r) ==
             IN
             /\ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
-\*                  /\ IF replicas = _replicas
-\*                     THEN Print(<<"PITNG DOWNLOAD", i, r, enMetaLogIdx>>, TRUE)
-\*                     ELSE TRUE
                   /\ Download(i, r, enMetaLogIdx)
                \/ 
                   LET
@@ -89,9 +84,6 @@ ProcessInTheNewGroup(r) ==
                     lcs == LongestCommonSubsequence(replicas[r].logs, logs)
                     nextLogIdx == Len(lcs) + 1
                   IN 
-\*                     /\ IF replicas = _replicas
-\*                        THEN Print(<<"PITNG NOOOOT DOWNLOAD", i, r, enMetaLogIdx>>, TRUE)
-\*                        ELSE TRUE
                      /\ replicas[r].commitNumber = enMetaLogIdx - 1
                      /\ replicas' = 
                          [
@@ -118,8 +110,6 @@ ProcessInTheNewGroup(r) ==
 ProcessInTheOldGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*        /\ \/ replicas[i].viewNumber >= replicas[r].viewNumber \* *\
-\*           \/ replicas[i].status = "shut down"                 \* *\
         /\ 
             LET
                 enMetaLogIdx ==
@@ -143,9 +133,6 @@ ProcessInTheOldGroup(r) ==
                          [
                              replicas EXCEPT ![r].status       = "shut down",
                                              ![r].viewNumber   = Max(@, replicas[i].viewNumber),
-\*                                                IF replicas[i].status = "shut down"
-\*                                                THEN replicas[i].viewNumber
-\*                                                ELSE Max(0, replicas[i].viewNumber - 1),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
