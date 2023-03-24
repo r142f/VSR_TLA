@@ -58,6 +58,9 @@ INSTANCE ReconfigurationProtocol
 
 (* Allow infinite stuttering to prevent deadlock on termination. *)
 Terminating ==
+\*    /\ ~ ENABLED ViewChangeProtocolNext
+\*    /\ ~ ENABLED RecoveryProtocolNext
+\*    /\ ~ ENABLED ReconfigurationProtocolNext
     /\ ExistsFunctioningLatestConfig
     /\ \E r \in Range(LatestConfigReplicas):
         replicas[r].epochNumber = MaxEpochNumber
@@ -105,5 +108,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 23 20:35:05 MSK 2023 by sandman
+\* Last modified Fri Mar 24 19:47:12 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

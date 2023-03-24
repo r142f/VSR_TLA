@@ -80,6 +80,7 @@ HandlePrepareOk(r) == \* See 4.1.5 of the paper.
             /\ Cardinality({
                    i \in Range(replicas[r].config):
                        /\ replicas[i].viewNumber = replicas[r].viewNumber
+                       /\ replicas[i].epochNumber = replicas[r].epochNumber
                        /\ replicas[i].opNumber >= l
                        /\ replicas[i].status = "normal"
                }) >= majority(r)
@@ -117,5 +118,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 22 14:20:35 MSK 2023 by sandman
+\* Last modified Thu Mar 23 22:44:49 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

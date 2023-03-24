@@ -67,6 +67,8 @@ HandleReconfigurationPrepareOk(r) ==
 ProcessInTheNewGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
+\*        /\ \/ replicas[i].viewNumber >= replicas[r].viewNumber \* *\
+\*           \/ replicas[i].status = "shut down"                 \* *\
         /\ 
             LET
                 enMetaLogIdx ==
@@ -77,6 +79,9 @@ ProcessInTheNewGroup(r) ==
             IN
             /\ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
+\*                  /\ IF replicas = _replicas
+\*                     THEN Print(<<"PITNG DOWNLOAD", i, r, enMetaLogIdx>>, TRUE)
+\*                     ELSE TRUE
                   /\ Download(i, r, enMetaLogIdx)
                \/ 
                   LET
@@ -84,6 +89,9 @@ ProcessInTheNewGroup(r) ==
                     lcs == LongestCommonSubsequence(replicas[r].logs, logs)
                     nextLogIdx == Len(lcs) + 1
                   IN 
+\*                     /\ IF replicas = _replicas
+\*                        THEN Print(<<"PITNG NOOOOT DOWNLOAD", i, r, enMetaLogIdx>>, TRUE)
+\*                        ELSE TRUE
                      /\ replicas[r].commitNumber = enMetaLogIdx - 1
                      /\ replicas' = 
                          [
@@ -99,17 +107,19 @@ ProcessInTheNewGroup(r) ==
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
-                                             ![r].opNumber     = IF lcs = logs THEN @ ELSE nextLogIdx,
+                                             ![r].opNumber     = IF lcs = logs THEN Len(lcs) ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         =
                                                 IF lcs = logs
-                                                THEN @
+                                                THEN lcs
                                                 ELSE Append(lcs, logs[nextLogIdx])
                          ]           
            
 ProcessInTheOldGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
+\*        /\ \/ replicas[i].viewNumber >= replicas[r].viewNumber \* *\
+\*           \/ replicas[i].status = "shut down"                 \* *\
         /\ 
             LET
                 enMetaLogIdx ==
@@ -118,7 +128,7 @@ ProcessInTheOldGroup(r) ==
                         /\ replicas[i].logs[l].epochNumber = replicas[i].epochNumber
                 enMetaLog == replicas[i].logs[enMetaLogIdx]
             IN
-\*            /\ r \in Range(replicas[i].oldConfig)
+            /\ replicas[r].status /= "shut down"
             /\ ~ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
                   /\ Download(i, r, enMetaLogIdx)
@@ -132,19 +142,19 @@ ProcessInTheOldGroup(r) ==
                      /\ replicas' = 
                          [
                              replicas EXCEPT ![r].status       = "shut down",
-                                             ![r].viewNumber   =
-                                                IF replicas[i].status = "shut down"
-                                                THEN replicas[i].viewNumber
-                                                ELSE Max(0, replicas[i].viewNumber - 1),
+                                             ![r].viewNumber   = Max(@, replicas[i].viewNumber),
+\*                                                IF replicas[i].status = "shut down"
+\*                                                THEN replicas[i].viewNumber
+\*                                                ELSE Max(0, replicas[i].viewNumber - 1),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
                                              ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
-                                             ![r].opNumber     = IF lcs = logs THEN @ ELSE nextLogIdx,
+                                             ![r].opNumber     = IF lcs = logs THEN Len(lcs) ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         =
                                                 IF lcs = logs
-                                                THEN @
+                                                THEN lcs
                                                 ELSE Append(lcs, logs[nextLogIdx])
                          ]  
 
@@ -160,5 +170,5 @@ ReconfigurationProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 23 20:23:30 MSK 2023 by sandman
+\* Last modified Fri Mar 24 18:16:29 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

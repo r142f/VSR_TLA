@@ -12,6 +12,8 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
           /\ vcCount' = vcCount + 1
        \/ /\ replicas[GetPrimary(r)].status = "recovering" \* for a dead primary
           /\ replicas[r].viewNumber < QuasiMaxViewNumber
+\*       \/ /\ replicas[GetPrimary(r)].viewNumber > replicas[r].viewNumber    \* *\
+\*          /\ replicas[GetPrimary(r)].epochNumber < replicas[r].epochNumber  \* *\
           /\ UNCHANGED <<vcCount>>
     /\ replicas' = [
         replicas EXCEPT ![r].viewNumber = @ + 1,
@@ -143,5 +145,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 22 17:56:28 MSK 2023 by sandman
+\* Last modified Fri Mar 24 20:09:39 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman
