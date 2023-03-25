@@ -33,7 +33,7 @@ ReplicasInit == \* see fig. 2 of the paper for explanation
             commitNumber               |-> 0,
             logs                       |-> <<>>,
             batch                      |-> <<>>,
-            lastNonce                  |-> 0,
+            recoveryReplica            |-> NULL,
             oldConfig                  |-> <<>>,
             config                     |-> config
         ]
@@ -110,5 +110,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 24 19:47:12 MSK 2023 by sandman
+\* Last modified Sat Mar 25 03:23:51 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

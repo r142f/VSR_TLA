@@ -10,9 +10,9 @@ Download(from, to, logIdx) ==
         lcs == LongestCommonSubsequence(replicas[to].logs, logs)
         nextLogIdx == Len(lcs) + 1
     IN 
-        /\ \/ /\ replicas[to].commitNumber < replicas[from].commitNumber
-              /\ replicas[to].commitNumber < Len(logs)
-           \/ lcs /= logs
+\*        /\ \/ /\ replicas[to].commitNumber < replicas[from].commitNumber
+\*              /\ replicas[to].commitNumber < Len(logs)
+\*           \/ lcs /= logs
         /\
              LET
                  needToCommit == 
@@ -38,6 +38,10 @@ Download(from, to, logIdx) ==
                  needToAddVNMetaLog ==
                     /\ needToAddLog
                     /\ logs[nextLogIdx] \in VNMetaLogType
+                 needToEndRecovery ==
+                    /\ replicas[to].status = "recovering"
+                    /\ ~ needToCommit
+                    /\ ~ needToAddLog   
              IN replicas' = 
                 [
                    replicas EXCEPT ![to].opNumber     = IF needToAddLog
@@ -63,6 +67,11 @@ Download(from, to, logIdx) ==
                                    ![to].config       = IF needToCommitENMetaLog
                                                         THEN logToCommit.config
                                                         ELSE @,
+                                   ![to].recoveryReplica = IF
+                                                            \/ needToEndRecovery
+                                                            \/ replicas[to].status /= "recovering"
+                                                           THEN NULL
+                                                           ELSE from,
                                    ![to].status       =  IF /\ needToCommitENMetaLog
                                                             /\ ~ to \in Range(logToCommit.config)
                                                          THEN "shut down"
@@ -70,10 +79,13 @@ Download(from, to, logIdx) ==
                                                                  /\ needToAddLog
                                                                  /\ nextLogIdx = Len(logs)
                                                               THEN "normal"
-                                                              ELSE @
-                ]
+                                                              ELSE IF needToEndRecovery
+                                                                   THEN replicas[from].status
+                                                                   ELSE @
+                ]                                                  
+                                                        
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 23 23:33:10 MSK 2023 by sandman
+\* Last modified Sat Mar 25 04:49:37 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

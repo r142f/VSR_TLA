@@ -65,7 +65,6 @@ ReplicasTypeOK == \* replicas type invariant
         /\ replicas[r].commitNumber \in 0..MaxLogsSize
         /\ CheckCommittedLogs(SafeSubSeq(replicas[r].logs, 1, replicas[r].commitNumber))
         /\ replicas[r].batch \in BatchType
-        /\ replicas[r].lastNonce \in 0..MaxNumFailures
         /\ replicas[r].oldConfig \in ConfigType \cup {<<>>}
         /\ replicas[r].config \in ConfigType \cup {<<>>}
    
