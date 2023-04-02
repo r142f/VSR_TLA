@@ -88,9 +88,9 @@ GetPrimary(r) ==
 
 IsPrimary(r) == GetPrimary(r) = r   
 
-InLatestEpoch(r) ==
-    ~ \E i \in 1..NumReplicas:
-        replicas[i].epochNumber > replicas[r].epochNumber
+\*InLatestEpoch(r) ==
+\*    ~ \E i \in 1..NumReplicas:
+\*        replicas[i].epochNumber > replicas[r].epochNumber
 
 ExistsFunctioningLatestConfig ==
     \E r \in 1..Len(replicas):
@@ -108,5 +108,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 23 20:33:58 MSK 2023 by sandman
+\* Last modified Fri Mar 31 20:39:49 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

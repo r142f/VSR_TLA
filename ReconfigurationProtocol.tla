@@ -1,5 +1,5 @@
 ---------------------- MODULE ReconfigurationProtocol ----------------------
-EXTENDS Declarations
+EXTENDS Declarations, TLC
 
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
@@ -14,7 +14,7 @@ PreparingReconfiguration(r) ==
     
 HandleReconfigurationRequest(r) ==
     /\ IsPrimary(r)
-    /\ InLatestEpoch(r)
+\*    /\ InLatestEpoch(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].epochNumber < MaxEpochNumber
     /\ ~ PreparingReconfiguration(r)
@@ -68,6 +68,7 @@ HandleReconfigurationPrepareOk(r) ==
 ProcessInTheNewGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
+\*        /\ replicas[i].viewNumber >= replicas[r].viewNumber
         /\ 
             LET
                 enMetaLogIdx ==
@@ -104,13 +105,14 @@ ProcessInTheNewGroup(r) ==
                                                                  ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         = IF lcs = logs
-                                                                 THEN lcs
+                                                                 THEN lcs \* TODO (remove) *\
                                                                  ELSE Append(lcs, logs[nextLogIdx])
                          ]           
            
 ProcessInTheOldGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
+\*        /\ replicas[i].viewNumber >= replicas[r].viewNumber
         /\ 
             LET
                 enMetaLogIdx ==
@@ -119,6 +121,7 @@ ProcessInTheOldGroup(r) ==
                         /\ replicas[i].logs[l].epochNumber = replicas[i].epochNumber
                 enMetaLog == replicas[i].logs[enMetaLogIdx]
             IN
+\*            /\ Print(<<r, enMetaLog>>, TRUE) 
             /\ replicas[r].status /= "shut down"
             /\ ~ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
@@ -143,7 +146,7 @@ ProcessInTheOldGroup(r) ==
                                                                  ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         = IF lcs = logs
-                                                                 THEN lcs
+                                                                 THEN lcs  \* TODO (remove) *\
                                                                  ELSE Append(lcs, logs[nextLogIdx])
                          ]  
 
@@ -158,5 +161,5 @@ ReconfigurationProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 24 18:16:29 MSK 2023 by sandman
+\* Last modified Fri Mar 31 20:46:05 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

@@ -61,8 +61,8 @@ ReplicasTypeOK == \* replicas type invariant
         /\ replicas[r].status \in {"normal", "view-change", "recovering", "shut down"}
         /\ replicas[r].viewNumber \in 0..QuasiMaxViewNumber
         /\ replicas[r].epochNumber \in 0..MaxEpochNumber
-        /\ replicas[r].opNumber \in 0..MaxLogsSize
-        /\ replicas[r].commitNumber \in 0..MaxLogsSize
+        /\ replicas[r].opNumber = Len(replicas[r].logs)
+        /\ replicas[r].commitNumber \in 0..replicas[r].opNumber
         /\ CheckCommittedLogs(SafeSubSeq(replicas[r].logs, 1, replicas[r].commitNumber))
         /\ replicas[r].batch \in BatchType
         /\ replicas[r].oldConfig \in ConfigType \cup {<<>>}
@@ -79,5 +79,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Mar 20 02:57:12 MSK 2023 by sandman
+\* Last modified Wed Mar 29 16:15:24 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman

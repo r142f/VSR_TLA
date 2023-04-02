@@ -56,7 +56,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                        \/ /\ replicas[r].status = "view-change"
                           /\ replicas[r].viewNumber = viewNumber
             }
-        IN
+IN
            /\ viewNumbers /= {}
            /\ LET
                 viewNumber == 
@@ -147,5 +147,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 24 20:09:39 MSK 2023 by sandman
+\* Last modified Wed Mar 29 20:53:28 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

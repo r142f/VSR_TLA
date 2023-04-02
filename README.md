@@ -26,6 +26,20 @@
 
 - Параметры модели:
     ```
+    MaxNumFailures <- 2
+    MaxEpochNumber <- 2
+    Requests       <- [model value] {r1}
+    MaxConfigSize  <- 3
+    NumReplicas    <- 3
+    MaxViewNumber  <- 2
+    NULL           <- [model value] 
+    ```
+    | Время     | Диаметр | Кол-во состояний | Уникальные состояния |
+    |-----------|---------|------------------|----------------------|
+    | ~10:09:39 | 61      | 163,796,176      | 55,786,992           |
+
+- Параметры модели:
+    ```
     MaxNumFailures <- 1
     MaxEpochNumber <- 1
     Requests       <- {}

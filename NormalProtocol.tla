@@ -69,7 +69,7 @@ HandlePrepare(r) == \* See 4.1.4 of the paper.
 
 HandlePrepareOk(r) == \* See 4.1.5 of the paper.
     /\ IsPrimary(r)
-    /\ InLatestEpoch(r)
+\*    /\ InLatestEpoch(r)
     /\ ~ PreparingReconfiguration(r)
     /\ replicas[r].opNumber > replicas[r].commitNumber
     /\
@@ -122,5 +122,5 @@ NormalProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 23 22:44:49 MSK 2023 by sandman
+\* Last modified Fri Mar 31 20:40:03 MSK 2023 by sandman
 \* Created Wed Nov 16 21:44:52 MSK 2022 by sandman

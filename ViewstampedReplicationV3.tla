@@ -6,6 +6,10 @@ INSTANCE Types
     
 vars == <<replicas, nonce, vcCount>>
 
+NoCommittedLogSubstitution ==
+    \A r \in 1..NumReplicas:
+        SafeSubSeq(replicas[r].logs, 1, replicas[r].commitNumber) = SafeSubSeq(replicas'[r].logs, 1, replicas[r].commitNumber)
+
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
     \A i \in 1..NumReplicas:
         \A j \in (i + 1)..NumReplicas:
@@ -110,5 +114,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 25 03:23:51 MSK 2023 by sandman
+\* Last modified Fri Mar 31 22:45:00 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman
