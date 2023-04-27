@@ -14,9 +14,16 @@ NumberOfFailedReplicas(config) ==
     
 NumberOfReplicasThatCanFail(config) ==
     LET
+        operatingConfigSize ==
+            Cardinality(
+                {
+                    r \in Range(config): 
+                        replicas[r].status /= "shut down"
+                }
+            )
         fs == {
-            f_i \in 0..Len(config):
-                2*f_i + 1 <= Len(config)
+            f_i \in 0..operatingConfigSize:
+                2*f_i + 1 <= operatingConfigSize
         }
     IN
         CHOOSE f_i \in fs: 
@@ -51,7 +58,7 @@ FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
     /\ nonce < MaxNumFailures
     /\ \/ replicas[r].status /= "recovering"
        \/ /\ replicas[r].status = "recovering"
-          /\ replicas[r].recoveryReplica /= NULL
+          /\ replicas[r].seedReplica /= NULL
     /\ CanFail(r)
     \* needed to prevent situation when primary fails and view-change is not possible
     \* on practice view-change can always proceed to the next primary if the current fails
@@ -69,7 +76,7 @@ FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
              commitNumber               |-> replicas[r].commitNumber,
              logs                       |-> replicas[r].logs,
              batch                      |-> <<>>,
-             recoveryReplica            |-> NULL,
+             seedReplica            |-> NULL,
              oldConfig                  |-> replicas[r].oldConfig,
              config                     |-> replicas[r].config
          ]
@@ -86,25 +93,25 @@ IsSuitableAsRecoveryReplica(r, i) ==
 
 HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
     /\ replicas[r].status = "recovering"
-    /\ \/ /\ replicas[r].recoveryReplica = NULL
+    /\ \/ /\ replicas[r].seedReplica = NULL
           /\ \E i \in 1..NumReplicas:
             /\ IsSuitableAsRecoveryReplica(r, i)
             /\ replicas' = [
-                    replicas EXCEPT ![r].recoveryReplica = i
+                    replicas EXCEPT ![r].seedReplica = i
                ]
-       \/ /\ replicas[r].recoveryReplica /= NULL
+       \/ /\ replicas[r].seedReplica /= NULL
           /\ LET
-                currentRecoveryReplica == replicas[replicas[r].recoveryReplica]
+                currentRecoveryReplica == replicas[replicas[r].seedReplica]
              IN
                 \E i \in 1..NumReplicas:
                    /\ IsSuitableAsRecoveryReplica(r, i)
-                   /\ \/ /\ i /= replicas[r].recoveryReplica
+                   /\ \/ /\ i /= replicas[r].seedReplica
                          /\ \/ /\ \/ replicas[i].epochNumber > currentRecoveryReplica.epochNumber
                                   \/ /\ replicas[i].epochNumber = currentRecoveryReplica.epochNumber
                                      /\ replicas[i].viewNumber > currentRecoveryReplica.viewNumber
-                            \/ ~ IsSuitableAsRecoveryReplica(r, replicas[r].recoveryReplica)
-                      \/ i = replicas[r].recoveryReplica
-                   /\ Download(i, r, replicas[i].opNumber)       
+                            \/ ~ IsSuitableAsRecoveryReplica(r, replicas[r].seedReplica)
+                      \/ i = replicas[r].seedReplica
+                   /\ Download(i, r, replicas[i].opNumber, FALSE)       
     /\ UNCHANGED <<nonce>>
      
 RecoveryProtocolNext ==
@@ -116,5 +123,5 @@ RecoveryProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 25 22:03:33 MSK 2023 by sandman
+\* Last modified Wed Apr 12 23:22:26 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

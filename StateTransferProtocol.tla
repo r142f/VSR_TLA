@@ -4,7 +4,7 @@ EXTENDS Declarations
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 
-Download(from, to, logIdx) == 
+Download(from, to, logIdx, epochCatchup) == 
     LET
         logs == SafeSubSeq(replicas[from].logs, 1, logIdx)
         lcs == LongestCommonSubsequence(replicas[to].logs, logs)
@@ -65,7 +65,7 @@ Download(from, to, logIdx) ==
                               ![to].config       = IF needToCommitENMetaLog
                                                    THEN logToCommit.config
                                                    ELSE @,
-                              ![to].recoveryReplica = IF
+                              ![to].seedReplica = IF
                                                        \/ needToEndRecovery
                                                        \/ replicas[to].status /= "recovering"
                                                       THEN NULL
@@ -79,11 +79,13 @@ Download(from, to, logIdx) ==
                                                          THEN "normal"
                                                          ELSE IF needToEndRecovery
                                                               THEN replicas[from].status
-                                                              ELSE @
+                                                              ELSE IF epochCatchup
+                                                                   THEN "epoch catchup"
+                                                                   ELSE @
            ]                                             
                                                         
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 30 23:19:37 MSK 2023 by sandman
+\* Last modified Tue Apr 11 02:19:44 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

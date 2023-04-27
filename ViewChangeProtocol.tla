@@ -40,6 +40,14 @@ GetLastNormalViewNumber(replica) ==
                 replica.logs[i] \in VNMetaLogType => replica.logs[i].viewNumber <= viewNumber
     ELSE 0
 
+GetLastNormalEpochNumber(replica) == 
+    IF \E i \in 1..Len(replica.logs): replica.logs[i] \in VNMetaLogType
+    THEN
+        CHOOSE epochNumber \in 0..MaxEpochNumber:
+            \A i \in 1..Len(replica.logs):
+                replica.logs[i] \in VNMetaLogType => replica.logs[i].epochNumber <= epochNumber
+    ELSE 0
+
 HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
         LET 
             viewNumbers == {
@@ -56,7 +64,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                        \/ /\ replicas[r].status = "view-change"
                           /\ replicas[r].viewNumber = viewNumber
             }
-IN
+        IN
            /\ viewNumbers /= {}
            /\ LET
                 viewNumber == 
@@ -74,8 +82,11 @@ IN
                 replicaWithNewLogs ==
                     CHOOSE replica \in doViewChangeReplicas:
                         \A replica_i \in doViewChangeReplicas:
-                            \/ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
-                            \/ /\ GetLastNormalViewNumber(replica) = GetLastNormalViewNumber(replica_i)
+                            \/ GetLastNormalEpochNumber(replica) > GetLastNormalEpochNumber(replica_i)
+                            \/ /\ GetLastNormalEpochNumber(replica) = GetLastNormalEpochNumber(replica_i)
+                               /\ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
+                            \/ /\ GetLastNormalEpochNumber(replica) = GetLastNormalEpochNumber(replica_i)
+                               /\ GetLastNormalViewNumber(replica) = GetLastNormalViewNumber(replica_i)
                                /\ replica.opNumber >= replica_i.opNumber
                 logs == replicaWithNewLogs.logs
                 opNumber == Len(logs)
@@ -109,7 +120,13 @@ IN
                                                 ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber 
                                                                     THEN @ + 1
                                                                     ELSE @,
-                                                ![r].logs         = Append(@, [viewNumber |-> viewNumber]),
+                                                ![r].logs         = Append(
+                                                                        @,
+                                                                        [
+                                                                            viewNumber  |-> viewNumber,
+                                                                            epochNumber |-> replicas[r].epochNumber
+                                                                        ]
+                                                                    ),
                                                 ![r].batch        = <<>>
                             ]
                      /\ UNCHANGED <<vcCount>>
@@ -133,12 +150,13 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
             IN
                 /\ \/ lcs /= logs
                    \/ replicas[r].commitNumber < replicas[i].commitNumber
-                /\ Download(i, r, vnMetaLogIdx)
+                /\ Download(i, r, vnMetaLogIdx, FALSE)
         /\ UNCHANGED <<vcCount>>
  
 ViewChangeProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "recovering"
+       /\ replicas[r].status /= "epoch catchup"
        /\ \/ StartViewChange(r)
           \/ HandleStartViewChange(r)
           \/ HandleDoViewChange(r)
@@ -147,5 +165,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 29 20:53:28 MSK 2023 by sandman
+\* Last modified Tue Apr 11 21:10:05 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

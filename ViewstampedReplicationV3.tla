@@ -25,10 +25,10 @@ ConsistentLogs == \* "all replicas must have consistent logs" invariant
 ----
     
 ReplicasInit == \* see fig. 2 of the paper for explanation
-  \E config \in ConfigType:
+  \E n \in 1..MaxConfigSize:
     replicas = [
         x \in 1..NumReplicas |-> [
-            status                     |-> IF x \in Range(config)
+            status                     |-> IF x \in Range(InitConfig(n))
                                            THEN "normal"
                                            ELSE "shut down",
             viewNumber                 |-> 0,
@@ -37,9 +37,9 @@ ReplicasInit == \* see fig. 2 of the paper for explanation
             commitNumber               |-> 0,
             logs                       |-> <<>>,
             batch                      |-> <<>>,
-            recoveryReplica            |-> NULL,
+            seedReplica                |-> NULL,
             oldConfig                  |-> <<>>,
-            config                     |-> config
+            config                     |-> InitConfig(n)
         ]
     ]
     
@@ -114,5 +114,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 31 22:45:00 MSK 2023 by sandman
+\* Last modified Wed Apr 19 18:40:11 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman
