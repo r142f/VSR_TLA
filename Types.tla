@@ -5,14 +5,22 @@ LOCAL INSTANCE Utils
 
 InitConfig(n) == [i \in 1..n |-> i]
 
-ConfigType ==
+ConfigTypeOrdered == 
     {
         SetToSeq(config): config \in {
             config \in SUBSET (1..NumReplicas) \ {{}}:
-                Cardinality(config) <= MaxConfigSize
+                /\ Cardinality(config) >= MinConfigSize
+                /\ Cardinality(config) <= MaxConfigSize
         }
     }
     
+ConfigTypeUnordered ==
+    UNION {
+        Perms(config): config \in ConfigTypeOrdered
+    }
+    
+ConfigType == ConfigTypeOrdered
+
 MaxLogsSize == Cardinality(Requests) + QuasiMaxViewNumber + MaxEpochNumber
 
 CommonLogType == [request: Requests]
@@ -88,5 +96,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Apr 19 18:39:56 MSK 2023 by sandman
+\* Last modified Fri May 05 18:11:13 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman

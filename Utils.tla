@@ -3,6 +3,9 @@ EXTENDS Declarations
 
 Range(T) == {T[x] : x \in DOMAIN T}
 
+Reverse(s) ==
+  [ i \in 1..Len(s) |-> s[(Len(s) - i) + 1] ]
+
 IsInjective(f) ==
     \A a,b \in DOMAIN f:
         f[a] = f[b] => a = b
@@ -108,5 +111,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 31 20:39:49 MSK 2023 by sandman
+\* Last modified Tue May 02 23:16:37 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman

@@ -1,14 +1,10 @@
------------------------ MODULE ViewstampedReplicationV3 -----------------------
+----------------------- MODULE ViewstampedReplication -----------------------
 EXTENDS Declarations, Naturals, TLC
 
 INSTANCE Utils
 INSTANCE Types
     
 vars == <<replicas, nonce, vcCount>>
-
-NoCommittedLogSubstitution ==
-    \A r \in 1..NumReplicas:
-        SafeSubSeq(replicas[r].logs, 1, replicas[r].commitNumber) = SafeSubSeq(replicas'[r].logs, 1, replicas[r].commitNumber)
 
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
     \A i \in 1..NumReplicas:
@@ -24,11 +20,11 @@ ConsistentLogs == \* "all replicas must have consistent logs" invariant
         
 ----
     
-ReplicasInit == \* see fig. 2 of the paper for explanation
-  \E n \in 1..MaxConfigSize:
+ReplicasInit ==
+  \E n \in MinConfigSize..MaxConfigSize:
     replicas = [
-        x \in 1..NumReplicas |-> [
-            status                     |-> IF x \in Range(InitConfig(n))
+        r \in 1..NumReplicas |-> [
+            status                     |-> IF r \in Range(InitConfig(n))
                                            THEN "normal"
                                            ELSE "shut down",
             viewNumber                 |-> 0,
@@ -114,5 +110,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Apr 19 18:40:11 MSK 2023 by sandman
+\* Last modified Fri May 05 17:19:13 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

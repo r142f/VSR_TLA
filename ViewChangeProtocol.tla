@@ -107,7 +107,9 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                                 lcs == LongestCommonSubsequence(replicas[r].logs, logs)
                             IN replicas' = [
                                 replicas EXCEPT ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
-                                                ![r].opNumber     = Len(lcs) + 1,
+                                                ![r].opNumber     = IF Len(lcs) < replicas[r].commitNumber
+                                                                    THEN -1
+                                                                    ELSE Len(lcs) + 1,
                                                 ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber
                                                                     THEN @ + 1
                                                                     ELSE @
@@ -165,5 +167,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Apr 11 21:10:05 MSK 2023 by sandman
+\* Last modified Fri May 05 16:06:14 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

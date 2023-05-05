@@ -1,2 +1,3 @@
-ViewstampedReplicationV3.toolbox
+ViewstampedReplication*.toolbox
 test.txt
+*.pdf
