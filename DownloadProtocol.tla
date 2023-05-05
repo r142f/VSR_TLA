@@ -1,4 +1,4 @@
------------------------ MODULE StateTransferProtocol -----------------------
+----------------------- MODULE DownloadProtocol -----------------------
 EXTENDS Declarations
 
 LOCAL INSTANCE Types

@@ -3,7 +3,7 @@ EXTENDS Declarations, TLC
 
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
-LOCAL INSTANCE StateTransferProtocol
+LOCAL INSTANCE DownloadProtocol
 
 
 PreparingReconfiguration(r) ==

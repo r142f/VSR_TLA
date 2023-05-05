@@ -3,7 +3,7 @@ EXTENDS Declarations
 
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
-LOCAL INSTANCE StateTransferProtocol
+LOCAL INSTANCE DownloadProtocol
 LOCAL INSTANCE ReconfigurationProtocol
                   
 TryUpdateBatch(r) ==

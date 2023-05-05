@@ -50,7 +50,7 @@ Init ==
     
 ----
 
-INSTANCE StateTransferProtocol
+INSTANCE DownloadProtocol
 INSTANCE NormalProtocol
 INSTANCE ViewChangeProtocol 
 INSTANCE RecoveryProtocol

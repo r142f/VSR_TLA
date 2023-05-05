@@ -4,7 +4,7 @@ EXTENDS Declarations
 LOCAL INSTANCE Utils
 LOCAL INSTANCE Types
 LOCAL INSTANCE NormalProtocol
-LOCAL INSTANCE StateTransferProtocol
+LOCAL INSTANCE DownloadProtocol
 
 NumberOfFailedReplicas(config) ==
     Cardinality({

@@ -3,7 +3,7 @@ EXTENDS Declarations
     
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
-LOCAL INSTANCE StateTransferProtocol
+LOCAL INSTANCE DownloadProtocol
 
 StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     /\ replicas[r].status /= "shut down"
