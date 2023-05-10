@@ -54,7 +54,7 @@ CanFail(r) ==
             NumberOfFailedReplicas(config) < NumberOfReplicasThatCanFail(config)
     
     
-FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
+Fail(r) == \* See 4.3.1 of the paper.
     /\ nonce < MaxNumFailures
     /\ \/ replicas[r].status /= "recovering"
        \/ /\ replicas[r].status = "recovering"
@@ -76,9 +76,38 @@ FailAndSendRecovery(r) == \* See 4.3.1 of the paper.
              commitNumber               |-> replicas[r].commitNumber,
              logs                       |-> replicas[r].logs,
              batch                      |-> <<>>,
-             seedReplica            |-> NULL,
+             seedReplica                |-> NULL,
              oldConfig                  |-> replicas[r].oldConfig,
              config                     |-> replicas[r].config
+         ]
+     ]
+    /\ nonce' = nonce + 1
+    
+Destroy(r) ==    
+    /\ nonce < MaxNumFailures
+    /\ \/ replicas[r].status /= "recovering"
+       \/ /\ replicas[r].status = "recovering"
+          /\ replicas[r].seedReplica /= NULL
+    /\ CanFail(r)
+    \* needed to prevent situation when primary fails and view-change is not possible
+    \* on practice view-change can always proceed to the next primary if the current fails
+    /\ ~ (
+        /\ replicas[r].viewNumber > MaxViewNumber
+        /\ IsPrimary(r)
+       )
+    /\ replicas' = 
+     [
+         replicas EXCEPT ![r] = [
+             status                     |-> "recovering",
+             viewNumber                 |-> 0,
+             epochNumber                |-> 0,
+             opNumber                   |-> 0,
+             commitNumber               |-> 0,
+             logs                       |-> <<>>,
+             batch                      |-> <<>>,
+             seedReplica                |-> NULL,
+             oldConfig                  |-> <<>>,
+             config                     |-> <<>>
          ]
      ]
     /\ nonce' = nonce + 1
@@ -111,17 +140,17 @@ HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
                                      /\ replicas[i].viewNumber > currentRecoveryReplica.viewNumber
                             \/ ~ IsSuitableAsRecoveryReplica(r, replicas[r].seedReplica)
                       \/ i = replicas[r].seedReplica
-                   /\ Download(i, r, replicas[i].opNumber, FALSE)       
+                   /\ Download(i, r, replicas[i].opNumber, FALSE, FALSE)       
     /\ UNCHANGED <<nonce>>
      
 RecoveryProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "shut down"
-       /\ \/ FailAndSendRecovery(r)
+       /\ \/ Fail(r)
           \/ HandleRecoveryResponse(r)
     /\ UNCHANGED << vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Apr 12 23:22:26 MSK 2023 by sandman
+\* Last modified Wed May 10 23:49:02 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman

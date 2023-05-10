@@ -79,7 +79,7 @@ ProcessInTheNewGroup(r) ==
             IN
             /\ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
-                  /\ Download(i, r, enMetaLogIdx, TRUE)
+                  /\ Download(i, r, enMetaLogIdx, TRUE, FALSE)
                \/ 
                   LET
                     logs == SafeSubSeq(replicas[i].logs, 1, enMetaLogIdx)
@@ -125,7 +125,7 @@ ProcessInTheOldGroup(r) ==
             /\ replicas[r].status /= "shut down"
             /\ ~ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
-                  /\ Download(i, r, enMetaLogIdx, TRUE)
+                  /\ Download(i, r, enMetaLogIdx, TRUE, FALSE)
                \/ 
                   LET
                     logs == SafeSubSeq(replicas[i].logs, 1, enMetaLogIdx)
@@ -161,5 +161,5 @@ ReconfigurationProtocolNext == \* M of the scheme
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Apr 11 02:20:21 MSK 2023 by sandman
+\* Last modified Wed May 10 23:33:13 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

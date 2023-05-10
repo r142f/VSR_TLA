@@ -4,7 +4,7 @@ EXTENDS Declarations
 LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 
-Download(from, to, logIdx, epochCatchup) == 
+Download(from, to, logIdx, epochCatchup, startViewCatchup) == 
     LET
         logs == SafeSubSeq(replicas[from].logs, 1, logIdx)
         lcs == LongestCommonSubsequence(replicas[to].logs, logs)
@@ -64,7 +64,10 @@ Download(from, to, logIdx, epochCatchup) ==
                                                    ELSE @,
                               ![to].config       = IF needToCommitENMetaLog
                                                    THEN logToCommit.config
-                                                   ELSE @,
+                                                   ELSE IF /\ replicas[from].epochNumber = 0
+                                                           /\ @ = <<>>
+                                                        THEN replicas[from].config
+                                                        ELSE @,
                               ![to].seedReplica = IF
                                                        \/ needToEndRecovery
                                                        \/ replicas[to].status /= "recovering"
@@ -73,19 +76,21 @@ Download(from, to, logIdx, epochCatchup) ==
                               ![to].status       =  IF /\ needToCommitENMetaLog
                                                        /\ ~ to \in Range(logToCommit.config)
                                                     THEN "shut down"
-                                                    ELSE IF /\ @ = "view-change"      \* for handle start view change *\
+                                                    ELSE IF /\ startViewCatchup     \* for handle start view change *\
                                                             /\ needToAddLog
                                                             /\ nextLogIdx = Len(logs)
                                                          THEN "normal"
-                                                         ELSE IF needToEndRecovery
-                                                              THEN replicas[from].status
-                                                              ELSE IF epochCatchup
-                                                                   THEN "epoch catchup"
-                                                                   ELSE @
+                                                         ELSE IF startViewCatchup
+                                                              THEN "view-change"
+                                                              ELSE IF needToEndRecovery
+                                                                   THEN replicas[from].status
+                                                                   ELSE IF epochCatchup
+                                                                        THEN "epoch catchup"
+                                                                        ELSE @
            ]                                             
                                                         
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Apr 11 02:19:44 MSK 2023 by sandman
+\* Last modified Wed May 10 23:47:38 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

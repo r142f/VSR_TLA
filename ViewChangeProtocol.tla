@@ -81,7 +81,10 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                     }
                 replicaWithNewLogs ==
                     CHOOSE replica \in doViewChangeReplicas:
-                        \A replica_i \in doViewChangeReplicas:
+                        \A replica_i \in doViewChangeReplicas:     
+\*                            \/ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
+\*                            \/ /\ GetLastNormalViewNumber(replica) = GetLastNormalViewNumber(replica_i)
+\*                               /\ replica.opNumber >= replica_i.opNumber
                             \/ GetLastNormalEpochNumber(replica) > GetLastNormalEpochNumber(replica_i)
                             \/ /\ GetLastNormalEpochNumber(replica) = GetLastNormalEpochNumber(replica_i)
                                /\ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
@@ -106,7 +109,8 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                             LET
                                 lcs == LongestCommonSubsequence(replicas[r].logs, logs)
                             IN replicas' = [
-                                replicas EXCEPT ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
+                                replicas EXCEPT ![r].status       = "view-change",
+                                                ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
                                                 ![r].opNumber     = IF Len(lcs) < replicas[r].commitNumber
                                                                     THEN -1
                                                                     ELSE Len(lcs) + 1,
@@ -152,7 +156,7 @@ HandleStartView(r) == \* See 4.2.5 of the paper. R_c
             IN
                 /\ \/ lcs /= logs
                    \/ replicas[r].commitNumber < replicas[i].commitNumber
-                /\ Download(i, r, vnMetaLogIdx, FALSE)
+                /\ Download(i, r, vnMetaLogIdx, FALSE, TRUE)
         /\ UNCHANGED <<vcCount>>
  
 ViewChangeProtocolNext ==
@@ -167,5 +171,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 05 16:06:14 MSK 2023 by sandman
+\* Last modified Mon May 08 18:46:33 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman
