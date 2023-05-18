@@ -96,5 +96,5 @@ TypeOK == \* type invariant
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 05 18:11:13 MSK 2023 by sandman
+\* Last modified Thu May 18 15:51:51 MSK 2023 by sandman
 \* Created Thu Dec 01 20:40:50 MSK 2022 by sandman

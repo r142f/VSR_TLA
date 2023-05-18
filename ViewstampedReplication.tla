@@ -110,5 +110,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 05 17:19:13 MSK 2023 by sandman
+\* Last modified Thu May 18 15:54:48 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman

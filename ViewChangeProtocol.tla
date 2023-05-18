@@ -20,32 +20,36 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
     
 HandleStartViewChange(r) ==
     \* See 4.2.1's end of the paper. 
-       /\ \E i \in Range(replicas[r].config):
-          \/ /\ replicas[i].viewNumber > replicas[r].viewNumber
-             /\ \/ /\ replicas[i].epochNumber = replicas[r].epochNumber
-                   /\ replicas[r].status /= "shut down"
-                   /\ replicas' = [
-                        replicas EXCEPT ![r].viewNumber = replicas[i].viewNumber,
-                                        ![r].status     = "view-change"
-                       ]
-                   /\ UNCHANGED <<vcCount>>
+    \E i \in Range(replicas[r].config):
+        /\ replicas[i].viewNumber > replicas[r].viewNumber
+        /\ replicas[i].epochNumber = replicas[r].epochNumber
+        /\ replicas[r].status /= "shut down"
+        /\ replicas' = [
+             replicas EXCEPT ![r].viewNumber = replicas[i].viewNumber,
+                             ![r].status     = "view-change"
+            ]
+        /\ UNCHANGED <<vcCount>>
 
     \* See 4.2.2 of the paper. Send "DoViewChange" msg was here
 
-GetLastNormalViewNumber(replica) == 
-    IF \E i \in 1..Len(replica.logs): replica.logs[i] \in VNMetaLogType
+GetLastNormalViewNumber(r) ==
+    IF 
+        \E i \in 1..Len(replicas[r].logs):
+            replicas[r].logs[i] \in VNMetaLogType
     THEN
         CHOOSE viewNumber \in 1..QuasiMaxViewNumber:
-            \A i \in 1..Len(replica.logs):
-                replica.logs[i] \in VNMetaLogType => replica.logs[i].viewNumber <= viewNumber
+            \A i \in 1..Len(replicas[r].logs):
+                replicas[r].logs[i] \in VNMetaLogType => replicas[r].logs[i].viewNumber <= viewNumber
     ELSE 0
 
-GetLastNormalEpochNumber(replica) == 
-    IF \E i \in 1..Len(replica.logs): replica.logs[i] \in VNMetaLogType
+GetLastNormalEpochNumber(r) == 
+    IF
+        \E i \in 1..Len(replicas[r].logs):
+            replicas[r].logs[i] \in VNMetaLogType
     THEN
         CHOOSE epochNumber \in 0..MaxEpochNumber:
-            \A i \in 1..Len(replica.logs):
-                replica.logs[i] \in VNMetaLogType => replica.logs[i].epochNumber <= epochNumber
+            \A i \in 1..Len(replicas[r].logs):
+                replicas[r].logs[i] \in VNMetaLogType => replicas[r].logs[i].epochNumber <= epochNumber
     ELSE 0
 
 HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
@@ -71,71 +75,73 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                     CHOOSE viewNumber \in 0..QuasiMaxViewNumber:
                         \A x \in viewNumbers:
                             viewNumber >= x
-                doViewChangeReplicas == 
+                doViewChangeReplicasSet == 
                     {
-                        replica \in {
-                            replicas[i]: i \in Range(replicas[r].config)
-                        }: /\ replica.viewNumber = viewNumber
-                           /\ replica.epochNumber = replicas[r].epochNumber
-                           /\ replica.status /= "recovering"
+                        i \in Range(replicas[r].config): 
+                            /\ replicas[i].viewNumber = viewNumber
+                            /\ replicas[i].epochNumber = replicas[r].epochNumber
+                            /\ replicas[i].status /= "recovering"
                     }
-                replicaWithNewLogs ==
-                    CHOOSE replica \in doViewChangeReplicas:
-                        \A replica_i \in doViewChangeReplicas:     
-\*                            \/ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
-\*                            \/ /\ GetLastNormalViewNumber(replica) = GetLastNormalViewNumber(replica_i)
-\*                               /\ replica.opNumber >= replica_i.opNumber
-                            \/ GetLastNormalEpochNumber(replica) > GetLastNormalEpochNumber(replica_i)
-                            \/ /\ GetLastNormalEpochNumber(replica) = GetLastNormalEpochNumber(replica_i)
-                               /\ GetLastNormalViewNumber(replica) > GetLastNormalViewNumber(replica_i)
-                            \/ /\ GetLastNormalEpochNumber(replica) = GetLastNormalEpochNumber(replica_i)
-                               /\ GetLastNormalViewNumber(replica) = GetLastNormalViewNumber(replica_i)
-                               /\ replica.opNumber >= replica_i.opNumber
-                logs == replicaWithNewLogs.logs
-                opNumber == Len(logs)
-                replicaWithNewCommitNumber ==
-                    CHOOSE replica \in doViewChangeReplicas:
-                        \A replica_i \in doViewChangeReplicas:
-                            replica.commitNumber >= replica_i.commitNumber
-              IN
-                \/ /\ replicaWithNewCommitNumber.epochNumber = replicas[r].epochNumber
-                   /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r 
-                   /\ \/ /\ replicas[r].status = "normal"
-                         /\ replicas[r].viewNumber < viewNumber
-                      \/ /\ replicas[r].status = "view-change"
-                         /\ replicas[r].viewNumber = viewNumber
-                   /\ \/ /\ replicas[r].logs /= logs
-                         /\ 
-                            LET
-                                lcs == LongestCommonSubsequence(replicas[r].logs, logs)
-                            IN replicas' = [
-                                replicas EXCEPT ![r].status       = "view-change",
-                                                ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
-                                                ![r].opNumber     = IF Len(lcs) < replicas[r].commitNumber
-                                                                    THEN -1
-                                                                    ELSE Len(lcs) + 1,
-                                                ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber
-                                                                    THEN @ + 1
-                                                                    ELSE @
-                            ]
-                      \/ /\ replicas[r].logs = logs
-                         /\ replicas' = [
-                                replicas EXCEPT ![r].status       = "normal",
-                                                ![r].viewNumber   = viewNumber,
-                                                ![r].opNumber     = @ + 1,
-                                                ![r].commitNumber = IF @ < replicaWithNewCommitNumber.commitNumber 
-                                                                    THEN @ + 1
-                                                                    ELSE @,
-                                                ![r].logs         = Append(
-                                                                        @,
-                                                                        [
-                                                                            viewNumber  |-> viewNumber,
-                                                                            epochNumber |-> replicas[r].epochNumber
-                                                                        ]
-                                                                    ),
-                                                ![r].batch        = <<>>
-                            ]
-                     /\ UNCHANGED <<vcCount>>
+                doViewChangeReplicasSubsets ==
+                    {
+                        subset \in SUBSET doViewChangeReplicasSet:
+                            Cardinality(subset) >= majority(r)
+                    }
+              IN \E doViewChangeReplicas \in doViewChangeReplicasSubsets:
+                LET
+                    replicaWithNewLogs ==
+                        LET idx ==
+                            CHOOSE i \in doViewChangeReplicas:
+                                \A j \in doViewChangeReplicas \ {i}:     
+\*                                    \/ GetLastNormalViewNumber(i) > GetLastNormalViewNumber(j)
+\*                                    \/ /\ GetLastNormalViewNumber(i) = GetLastNormalViewNumber(j)
+\*                                       /\ replicas[i].opNumber >= replicas[j].opNumber
+                                    \/ GetLastNormalEpochNumber(i) > GetLastNormalEpochNumber(j)
+                                    \/ /\ GetLastNormalEpochNumber(i) = GetLastNormalEpochNumber(j)
+                                       /\ GetLastNormalViewNumber(i) > GetLastNormalViewNumber(j)
+                                    \/ /\ GetLastNormalEpochNumber(i) = GetLastNormalEpochNumber(j)
+                                       /\ GetLastNormalViewNumber(i) = GetLastNormalViewNumber(j)
+                                       /\ replicas[i].opNumber >= replicas[j].opNumber
+                        IN replicas[idx]
+                    logs == replicaWithNewLogs.logs
+                    opNumber == Len(logs)
+                    lcs == LongestCommonSubsequence(replicas[r].logs, logs)
+                IN
+                    \/ /\ replicaWithNewLogs.epochNumber = replicas[r].epochNumber
+                       /\ replicas[r].config[(viewNumber % ConfigSize(r)) + 1] = r 
+                       /\ \/ /\ replicas[r].status = "normal"
+                             /\ replicas[r].viewNumber < viewNumber
+                          \/ /\ replicas[r].status = "view-change"
+                             /\ replicas[r].viewNumber = viewNumber
+                       /\ \/ /\ Len(lcs) < Len(logs)
+                             /\ replicas' = [
+                                    replicas EXCEPT ![r].status       = "view-change",
+                                                    ![r].logs         = Append(lcs, logs[Len(lcs) + 1]),
+                                                    ![r].opNumber     = IF Len(lcs) < replicas[r].commitNumber
+                                                                        THEN -1
+                                                                        ELSE Len(lcs) + 1,
+                                                    ![r].commitNumber = IF @ < replicaWithNewLogs.commitNumber
+                                                                        THEN @ + 1
+                                                                        ELSE @
+                                ]
+                          \/ /\ Len(lcs) = Len(logs)
+                             /\ replicas' = [
+                                    replicas EXCEPT ![r].status       = "normal",
+                                                    ![r].viewNumber   = viewNumber,
+                                                    ![r].opNumber     = @ + 1,
+                                                    ![r].commitNumber = IF @ < replicaWithNewLogs.commitNumber 
+                                                                        THEN @ + 1
+                                                                        ELSE @,
+                                                    ![r].logs         = Append(
+                                                                            @,
+                                                                            [
+                                                                                viewNumber  |-> viewNumber,
+                                                                                epochNumber |-> replicas[r].epochNumber
+                                                                            ]
+                                                                        ),
+                                                    ![r].batch        = <<>>
+                                ]
+                         /\ UNCHANGED <<vcCount>>
 
 HandleStartView(r) == \* See 4.2.5 of the paper. R_c
     /\ \E i \in Range(replicas[r].config):
@@ -171,5 +177,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 08 18:46:33 MSK 2023 by sandman
+\* Last modified Thu May 18 22:02:34 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

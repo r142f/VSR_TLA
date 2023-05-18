@@ -5,6 +5,7 @@ LOCAL INSTANCE Utils
 LOCAL INSTANCE Types
 LOCAL INSTANCE NormalProtocol
 LOCAL INSTANCE DownloadProtocol
+LOCAL INSTANCE ViewChangeProtocol
 
 NumberOfFailedReplicas(config) ==
     Cardinality({
@@ -54,7 +55,7 @@ CanFail(r) ==
             NumberOfFailedReplicas(config) < NumberOfReplicasThatCanFail(config)
     
     
-Fail(r) == \* See 4.3.1 of the paper.
+SoftFail(r) == \* See 4.3.1 of the paper.
     /\ nonce < MaxNumFailures
     /\ \/ replicas[r].status /= "recovering"
        \/ /\ replicas[r].status = "recovering"
@@ -70,20 +71,14 @@ Fail(r) == \* See 4.3.1 of the paper.
      [
          replicas EXCEPT ![r] = [
              status                     |-> "recovering",
-             viewNumber                 |-> replicas[r].viewNumber,
-             epochNumber                |-> replicas[r].epochNumber,
-             opNumber                   |-> replicas[r].opNumber,
-             commitNumber               |-> replicas[r].commitNumber,
-             logs                       |-> replicas[r].logs,
+             viewNumber                 |-> GetLastNormalViewNumber(r),
              batch                      |-> <<>>,
-             seedReplica                |-> NULL,
-             oldConfig                  |-> replicas[r].oldConfig,
-             config                     |-> replicas[r].config
+             seedReplica                |-> NULL
          ]
      ]
     /\ nonce' = nonce + 1
     
-Destroy(r) ==    
+HardFail(r) ==    
     /\ nonce < MaxNumFailures
     /\ \/ replicas[r].status /= "recovering"
        \/ /\ replicas[r].status = "recovering"
@@ -111,46 +106,24 @@ Destroy(r) ==
          ]
      ]
     /\ nonce' = nonce + 1
-
-IsSuitableAsRecoveryReplica(r, i) ==
-    /\ replicas[i].status = "normal"
-    /\ IsPrimary(i)
-    /\ \/ /\ replicas[i].epochNumber >= replicas[r].epochNumber
-          /\ replicas[i].viewNumber >= replicas[r].viewNumber
-       \/ /\ replicas[i].epochNumber > replicas[r].epochNumber
-          /\ replicas[i].viewNumber < replicas[r].viewNumber
-
-HandleRecoveryResponse(r) == \* See 4.3.3 of the paper.
+    
+Recover(r) == \* See 4.3.3 of the paper.
     /\ replicas[r].status = "recovering"
-    /\ \/ /\ replicas[r].seedReplica = NULL
-          /\ \E i \in 1..NumReplicas:
-            /\ IsSuitableAsRecoveryReplica(r, i)
-            /\ replicas' = [
-                    replicas EXCEPT ![r].seedReplica = i
-               ]
-       \/ /\ replicas[r].seedReplica /= NULL
-          /\ LET
-                currentRecoveryReplica == replicas[replicas[r].seedReplica]
-             IN
-                \E i \in 1..NumReplicas:
-                   /\ IsSuitableAsRecoveryReplica(r, i)
-                   /\ \/ /\ i /= replicas[r].seedReplica
-                         /\ \/ /\ \/ replicas[i].epochNumber > currentRecoveryReplica.epochNumber
-                                  \/ /\ replicas[i].epochNumber = currentRecoveryReplica.epochNumber
-                                     /\ replicas[i].viewNumber > currentRecoveryReplica.viewNumber
-                            \/ ~ IsSuitableAsRecoveryReplica(r, replicas[r].seedReplica)
-                      \/ i = replicas[r].seedReplica
-                   /\ Download(i, r, replicas[i].opNumber, FALSE, FALSE)       
+    /\ replicas' = [
+        replicas EXCEPT ![r].status = "view-change"
+       ]
     /\ UNCHANGED <<nonce>>
-     
+
 RecoveryProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "shut down"
-       /\ \/ Fail(r)
-          \/ HandleRecoveryResponse(r)
+       /\ \/ SoftFail(r)
+\*          \/ HardFail(r)
+\*          \/ HandleRecoveryResponse(r)
+          \/ Recover(r)
     /\ UNCHANGED << vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 10 23:49:02 MSK 2023 by sandman
+\* Last modified Thu May 18 22:38:19 MSK 2023 by sandman
 \* Created Thu Dec 01 21:33:07 MSK 2022 by sandman
