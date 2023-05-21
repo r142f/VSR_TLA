@@ -14,7 +14,6 @@ PreparingReconfiguration(r) ==
     
 HandleReconfigurationRequest(r) ==
     /\ IsPrimary(r)
-\*    /\ InLatestEpoch(r)
     /\ replicas[r].status = "normal"
     /\ replicas[r].epochNumber < MaxEpochNumber
     /\ ~ PreparingReconfiguration(r)
@@ -34,41 +33,9 @@ HandleReconfigurationRequest(r) ==
                                 ![r].logs     = Append(@, enMetaLog)
                ]
 
-HandleReconfigurationPrepareOk(r) ==
-    /\ PreparingReconfiguration(r)
-    /\ 
-        LET 
-            enMetaLog == replicas[r].logs[Len(replicas[r].logs)]
-        IN
-           /\ Cardinality({
-                   i \in Range(replicas[r].config): 
-                       /\ replicas[i].viewNumber = replicas[r].viewNumber
-                       /\ replicas[i].epochNumber = replicas[r].epochNumber
-                       /\ replicas[i].opNumber >= replicas[r].opNumber
-                       /\ \E l \in 1..Len(replicas[i].logs):
-                           /\ replicas[i].logs[l] \in ENMetaLogType
-                           /\ replicas[i].logs[l].epochNumber = enMetaLog.epochNumber
-                           /\ replicas[i].logs[l].config = enMetaLog.config
-                       /\ replicas[i].status = "normal"
-               }) >= majority(r) 
-           /\ replicas' = 
-               [
-                   replicas EXCEPT ![r].commitNumber = replicas[r].opNumber,
-                                   ![r].epochNumber  = @ + 1,
-                                   ![r].viewNumber   = IF r \in Range(enMetaLog.config)
-                                                       THEN @ + 1
-                                                       ELSE @,
-                                   ![r].status       = IF r \in Range(enMetaLog.config)
-                                                       THEN "view-change"
-                                                       ELSE "shut down",
-                                   ![r].oldConfig    = replicas[r].config,
-                                   ![r].config       = enMetaLog.config
-               ]
-
 ProcessInTheNewGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*        /\ replicas[i].viewNumber >= replicas[r].viewNumber
         /\ 
             LET
                 enMetaLogIdx ==
@@ -97,22 +64,20 @@ ProcessInTheNewGroup(r) ==
                                                                     ELSE replicas[i].viewNumber
                                                                  ),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
-                                             ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
                                              ![r].opNumber     = IF lcs = logs
-                                                                 THEN Len(lcs)
+                                                                 THEN @
                                                                  ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         = IF lcs = logs
-                                                                 THEN lcs \* TODO (remove) *\
+                                                                 THEN @
                                                                  ELSE Append(lcs, logs[nextLogIdx])
                          ]           
            
 ProcessInTheOldGroup(r) ==
     /\ \E i \in 1..NumReplicas:
         /\ replicas[i].epochNumber > replicas[r].epochNumber
-\*        /\ replicas[i].viewNumber >= replicas[r].viewNumber
         /\ 
             LET
                 enMetaLogIdx ==
@@ -121,7 +86,6 @@ ProcessInTheOldGroup(r) ==
                         /\ replicas[i].logs[l].epochNumber = replicas[i].epochNumber
                 enMetaLog == replicas[i].logs[enMetaLogIdx]
             IN
-\*            /\ Print(<<r, enMetaLog>>, TRUE) 
             /\ replicas[r].status /= "shut down"
             /\ ~ r \in Range(enMetaLog.config)
             /\ \/ /\ replicas[r].commitNumber < enMetaLogIdx - 1
@@ -138,28 +102,26 @@ ProcessInTheOldGroup(r) ==
                              replicas EXCEPT ![r].status       = "shut down",
                                              ![r].viewNumber   = Max(@, replicas[i].viewNumber),
                                              ![r].epochNumber  = enMetaLog.epochNumber,
-                                             ![r].oldConfig    = replicas[r].config,
                                              ![r].config       = enMetaLog.config,
                                              ![r].batch        = <<>>,
                                              ![r].opNumber     = IF lcs = logs
-                                                                 THEN Len(lcs)
+                                                                 THEN @
                                                                  ELSE nextLogIdx,
                                              ![r].commitNumber = @ + 1,
                                              ![r].logs         = IF lcs = logs
-                                                                 THEN lcs  \* TODO (remove) *\
+                                                                 THEN @
                                                                  ELSE Append(lcs, logs[nextLogIdx])
                          ]  
 
-ReconfigurationProtocolNext == \* M of the scheme
+ReconfigurationProtocolNext ==
     /\ \E r \in 1..Len(replicas):
        /\ replicas[r].status /= "recovering"
        /\ \/ HandleReconfigurationRequest(r)
-          \/ HandleReconfigurationPrepareOk(r)
           \/ ProcessInTheNewGroup(r)
           \/ ProcessInTheOldGroup(r)
     /\ UNCHANGED <<nonce, vcCount>>
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 10 23:33:13 MSK 2023 by sandman
+\* Last modified Sat May 20 21:45:06 MSK 2023 by sandman
 \* Created Sat Jan 21 06:40:06 MSK 2023 by sandman

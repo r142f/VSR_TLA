@@ -38,6 +38,9 @@ Download(from, to, logIdx, epochCatchup, startViewCatchup) ==
                /\ replicas[to].status = "recovering"
                /\ ~ needToCommit
                /\ ~ needToAddLog   
+            needToEndStartViewCatchup ==
+               /\ needToAddLog
+               /\ nextLogIdx = Len(logs) 
         IN replicas' = 
            [
               replicas EXCEPT ![to].opNumber     = IF Len(lcs) < replicas[to].commitNumber
@@ -59,38 +62,36 @@ Download(from, to, logIdx, epochCatchup, startViewCatchup) ==
                               ![to].epochNumber  = IF needToCommitENMetaLog
                                                    THEN logToCommit.epochNumber
                                                    ELSE @,
-                              ![to].oldConfig    = IF needToCommitENMetaLog
-                                                   THEN replicas[to].config
-                                                   ELSE @,
                               ![to].config       = IF needToCommitENMetaLog
                                                    THEN logToCommit.config
                                                    ELSE IF /\ replicas[from].epochNumber = 0
                                                            /\ @ = <<>>
                                                         THEN replicas[from].config
                                                         ELSE @,
-                              ![to].seedReplica = IF
-                                                       \/ needToEndRecovery
-                                                       \/ replicas[to].status /= "recovering"
-                                                      THEN NULL
-                                                      ELSE from,
-                              ![to].status       =  IF /\ needToCommitENMetaLog
-                                                       /\ ~ to \in Range(logToCommit.config)
-                                                    THEN "shut down"
-                                                    ELSE IF /\ startViewCatchup     \* for handle start view change *\
-                                                            /\ needToAddLog
-                                                            /\ nextLogIdx = Len(logs)
-                                                         THEN "normal"
-                                                         ELSE IF startViewCatchup
-                                                              THEN "view-change"
-                                                              ELSE IF needToEndRecovery
-                                                                   THEN replicas[from].status
-                                                                   ELSE IF epochCatchup
-                                                                        THEN "epoch catchup"
-                                                                        ELSE @
-           ]                                             
+                              ![to].seedReplica = IF \/ needToEndRecovery
+                                                     \/ replicas[to].status /= "recovering"
+                                                  THEN NULL
+                                                  ELSE from,
+                              ![to].status       =  IF /\ @ = "recovering"
+                                                       /\ ~ needToEndRecovery
+                                                    THEN @
+                                                    ELSE IF /\ needToCommitENMetaLog
+                                                            /\ ~ to \in Range(logToCommit.config)
+                                                         THEN "shut down"
+                                                         ELSE IF needToEndStartViewCatchup
+                                                              THEN "normal"
+                                                              ELSE IF startViewCatchup
+                                                                   THEN "view-change"
+                                                                   ELSE IF needToEndRecovery
+                                                                        THEN IF to \in Range(replicas[from].config)
+                                                                             THEN "normal"
+                                                                             ELSE "shut down"
+                                                                        ELSE IF epochCatchup
+                                                                             THEN "epoch catchup"
+                                                                             ELSE @
+           ]                                                  
                                                         
-
 =============================================================================
 \* Modification History
-\* Last modified Wed May 10 23:47:38 MSK 2023 by sandman
+\* Last modified Sat May 20 21:50:29 MSK 2023 by sandman
 \* Created Thu Dec 01 20:54:50 MSK 2022 by sandman

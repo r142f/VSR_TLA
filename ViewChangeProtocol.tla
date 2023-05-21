@@ -5,7 +5,7 @@ LOCAL INSTANCE Types
 LOCAL INSTANCE Utils
 LOCAL INSTANCE DownloadProtocol
 
-StartViewChange(r) == \* See 4.2.1 of the paper. E_1
+StartViewChange(r) ==
     /\ replicas[r].status /= "shut down"
     /\ ~ IsPrimary(r)
     /\ \/ /\ vcCount < MaxViewNumber
@@ -19,7 +19,6 @@ StartViewChange(r) == \* See 4.2.1 of the paper. E_1
        ]
     
 HandleStartViewChange(r) ==
-    \* See 4.2.1's end of the paper. 
     \E i \in Range(replicas[r].config):
         /\ replicas[i].viewNumber > replicas[r].viewNumber
         /\ replicas[i].epochNumber = replicas[r].epochNumber
@@ -29,8 +28,6 @@ HandleStartViewChange(r) ==
                              ![r].status     = "view-change"
             ]
         /\ UNCHANGED <<vcCount>>
-
-    \* See 4.2.2 of the paper. Send "DoViewChange" msg was here
 
 GetLastNormalViewNumber(r) ==
     IF 
@@ -52,7 +49,7 @@ GetLastNormalEpochNumber(r) ==
                 replicas[r].logs[i] \in VNMetaLogType => replicas[r].logs[i].epochNumber <= epochNumber
     ELSE 0
 
-HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
+HandleDoViewChange(r) ==
         LET 
             viewNumbers == {
                 viewNumber \in 0..QuasiMaxViewNumber:
@@ -143,7 +140,7 @@ HandleDoViewChange(r) == \* See 4.2.3 of the paper. E_m и M_c
                                 ]
                          /\ UNCHANGED <<vcCount>>
 
-HandleStartView(r) == \* See 4.2.5 of the paper. R_c
+HandleStartView(r) ==
     /\ \E i \in Range(replicas[r].config):
         /\ replicas[r].epochNumber = replicas[i].epochNumber
         /\ \/ /\ replicas[r].status = "view-change"
@@ -177,5 +174,5 @@ ViewChangeProtocolNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu May 18 22:02:34 MSK 2023 by sandman
+\* Last modified Sat May 20 21:59:44 MSK 2023 by sandman
 \* Created Thu Dec 01 21:03:22 MSK 2022 by sandman

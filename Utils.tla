@@ -4,10 +4,12 @@ EXTENDS Declarations
 Range(T) == {T[x] : x \in DOMAIN T}
 
 Reverse(s) ==
-  [ i \in 1..Len(s) |-> s[(Len(s) - i) + 1] ]
+  [
+    i \in 1..Len(s) |-> s[(Len(s) - i) + 1]
+  ]
 
 IsInjective(f) ==
-    \A a,b \in DOMAIN f:
+    \A a, b \in DOMAIN f:
         f[a] = f[b] => a = b
 
 SetToSeq(S) == 
@@ -32,6 +34,11 @@ Max(a, b) ==
     THEN b
     ELSE a
 
+SetMax(S) ==
+    CHOOSE x \in S:
+        \A y \in S:
+            y <= x
+
 LongestCommonSubsequence(s1, s2) ==
     LET
         setOfIndices ==
@@ -51,10 +58,6 @@ SafeSubSeq(seq, from, to) ==
     ELSE IF to > Len(seq)
          THEN <<>>
          ELSE SubSeq(seq, from, to)
-
-Insert(seq, elem, pos) == SubSeq(seq, 1, pos - 1) \o <<elem>> \o SubSeq(seq, pos, Len(seq))
-
-Subset(set, size) == {subset \in SUBSET set: Cardinality(subset) = size}
     
 GetIdx(seq, key, value, type) == 
     IF \E i \in 1..Len(seq):
@@ -71,16 +74,6 @@ GetIdx(seq, key, value, type) ==
 QuasiMaxViewNumber == MaxViewNumber + MaxEpochNumber + MaxNumFailures + NumReplicas
 
 ConfigSize(r) == Len(replicas[r].config)
-
-f(r) ==  \* number of replicas that can fail simultaniously
-    LET
-        fs == {
-            f_i \in 0..ConfigSize(r):
-                2*f_i + 1 <= ConfigSize(r)
-        }
-    IN CHOOSE f_i \in fs: 
-        \A f_j \in fs:
-            f_i >= f_j
                     
 majority(r) == ConfigSize(r) \div 2 + 1
 
@@ -90,10 +83,6 @@ GetPrimary(r) ==
     IN replicas[r].config[primaryIdx]
 
 IsPrimary(r) == GetPrimary(r) = r   
-
-\*InLatestEpoch(r) ==
-\*    ~ \E i \in 1..NumReplicas:
-\*        replicas[i].epochNumber > replicas[r].epochNumber
 
 ExistsFunctioningLatestConfig ==
     \E r \in 1..Len(replicas):
@@ -111,5 +100,5 @@ LatestConfigReplicas == replicas[ReplicaWithLatestFunctioningConfig].config
 
 =============================================================================
 \* Modification History
-\* Last modified Thu May 18 22:31:03 MSK 2023 by sandman
+\* Last modified Sat May 20 21:55:55 MSK 2023 by sandman
 \* Created Wed Nov 16 21:32:33 MSK 2022 by sandman
