@@ -12,7 +12,6 @@ CONSTANT
     NULL            \* null value
     
 ASSUME 
-    /\ MinConfigSize <= NumReplicas
     /\ MaxConfigSize <= NumReplicas
     /\ MinConfigSize <= MaxConfigSize
         

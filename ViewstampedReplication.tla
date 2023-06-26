@@ -9,14 +9,10 @@ vars == <<replicas, nonce, vcCount>>
 ConsistentLogs == \* "all replicas must have consistent logs" invariant
     \A i \in 1..NumReplicas:
         \A j \in (i + 1)..NumReplicas:
-            LET
-                a == SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber)
-                b == SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
-            IN 
-                Len(LongestCommonSubsequence(
-                   SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
-                   SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
-                )) = Min(replicas[i].commitNumber, replicas[j].commitNumber)
+            Len(LongestCommonSubsequence(
+                SafeSubSeq(replicas[i].logs, 1, replicas[i].commitNumber),
+                SafeSubSeq(replicas[j].logs, 1, replicas[j].commitNumber)
+            )) = Min(replicas[i].commitNumber, replicas[j].commitNumber)
         
 ----
     
@@ -106,5 +102,5 @@ RequestsCommitted == \* "eventually all client requests are committed" temporal 
 
 =============================================================================
 \* Modification History
-\* Last modified Thu May 18 22:56:21 MSK 2023 by sandman
+\* Last modified Sat Jun 03 23:52:48 MSK 2023 by sandman
 \* Created Sat Nov 12 01:35:27 MSK 2022 by sandman
